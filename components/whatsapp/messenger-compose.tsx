@@ -1,22 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { cn } from '@/lib/utils';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
-import { Sparkles, Send, Paperclip, Slash, Loader2, X } from 'lucide-react';
+import { Sparkles, Send, Paperclip, Loader2, X } from 'lucide-react';
 
 export type SlashAction = 'extract' | 'optimize' | 'verify' | 'magazine';
 
 /**
- * Compose bar — sized for a person who lives in this bar all day.
- *
- *   - Input is a real text field (not a pill), min-height 56px so the
- *     cursor is comfortable. Rounded rect, big readable type.
- *   - "/" is a VISIBLE chip on the left edge of the input — click it
- *     OR type "/" to open the action palette.
- *   - Sparkles + Send are 40x40 with clear hover states.
- *   - Palette opens as a popover RIGHT ABOVE the input — anchored,
- *     not floating in random space.
+ * Compose — one row, real-sized input, big targets.
+ * No stacked toolbars. No empty optimizer panel parked above.
+ * "/" types into the input AND/OR clicks the AI button → palette
+ * pops as a popover ABOVE the input.
  */
 export function MessengerCompose({
   onSend,
@@ -43,26 +37,20 @@ export function MessengerCompose({
     el.style.height = Math.min(el.scrollHeight, 180) + 'px';
   }, [text]);
 
-  // Detect typed "/" → opens palette
+  // Detect typed "/"
   useEffect(() => {
     const m = text.match(/(?:^|\s)(\/[a-z0-9_-]*)$/);
     if (m) {
       setPaletteOpen(true);
       setPaletteQuery(m[1].slice(1));
       setPaletteIdx(0);
-    } else if (paletteOpen && !text.endsWith('/')) {
-      // Keep open if user manually opened it (no `/` in text), close if `/` was removed
-      if (!text.match(/\/[a-z0-9_-]*$/)) {
-        // only auto-close when the user is past the slash command
-        // (we leave it open for manual mode; closes via Esc/click-away)
-      }
     }
-  }, [text, paletteOpen]);
+  }, [text]);
 
   const SLASH_ACTIONS: { id: SlashAction; label: string; hint: string }[] = useMemo(() => [
     { id: 'extract',  label: '/extract',  hint: 'Pull a structured order from this chat' },
-    { id: 'optimize', label: '/optimize', hint: 'Predict if this draft will convert + rewrite' },
-    { id: 'verify',   label: '/verify',   hint: 'Check the latest payment screenshot for fraud' },
+    { id: 'optimize', label: '/optimize', hint: 'Predict conversion + rewrite the draft' },
+    { id: 'verify',   label: '/verify',   hint: 'Check the latest payment screenshot' },
     { id: 'magazine', label: '/magazine', hint: 'Post-purchase personalized magazine' },
   ], []);
 
@@ -75,10 +63,7 @@ export function MessengerCompose({
       .filter((x) => !q || x.id.includes(q))
       .map((x) => ({ kind: 'action', id: x.id, label: x.label, hint: x.hint }));
     const s: Row[] = SHORTCUTS
-      .filter((sc) => {
-        if (!q) return true;
-        return sc.trigger_key.includes(q) || sc.content_en.toLowerCase().includes(q);
-      })
+      .filter((sc) => !q || sc.trigger_key.includes(q) || sc.content_en.toLowerCase().includes(q))
       .slice(0, q ? 16 : 8)
       .map((sc) => ({ kind: 'shortcut', id: sc.id, label: sc.trigger_key, hint: sc.content_en }));
     return [...a, ...s];
@@ -88,23 +73,15 @@ export function MessengerCompose({
     setText((prev) => prev.replace(/(\/[a-z0-9_-]*)$/, ''));
   }
   function closePalette() {
-    setPaletteOpen(false);
-    setPaletteQuery('');
-    setPaletteIdx(0);
+    setPaletteOpen(false); setPaletteQuery(''); setPaletteIdx(0);
   }
   function chooseRow(r: Row) {
-    if (r.kind === 'action') {
-      clearSlash();
-      closePalette();
-      onSlashAction(r.id);
-    } else {
-      clearSlash();
-      closePalette();
-      onShortcutPick(r.label);
-    }
+    clearSlash();
+    closePalette();
+    if (r.kind === 'action') onSlashAction(r.id);
+    else onShortcutPick(r.label);
     ref.current?.focus();
   }
-
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (paletteOpen) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setPaletteIdx((i) => Math.min(rows.length - 1, i + 1)); return; }
@@ -117,33 +94,28 @@ export function MessengerCompose({
       handleSend();
     }
   }
-
   function handleSend() {
     if (!text.trim()) return;
     onSend(text);
     setText('');
     closePalette();
   }
-
-  function toggleSlash() {
-    if (paletteOpen) {
-      closePalette();
-    } else {
-      setPaletteOpen(true);
-      setPaletteQuery('');
-      setPaletteIdx(0);
-      ref.current?.focus();
-    }
+  function toggleAI() {
+    if (paletteOpen) { closePalette(); return; }
+    setPaletteOpen(true);
+    setPaletteQuery('');
+    setPaletteIdx(0);
+    ref.current?.focus();
   }
 
   return (
-    <div className="relative shrink-0 border-t border-line-soft bg-canvas">
-      {/* Palette — anchored ABOVE the input */}
+    <div className="relative shrink-0 border-t border-zinc-800 bg-zinc-900">
+      {/* Palette anchored above */}
       {paletteOpen && rows.length > 0 && (
-        <div className="absolute bottom-full left-0 right-0 mb-0 max-h-[340px] overflow-y-auto bg-canvas-raised border-t border-line-soft shadow-2xl">
-          <div className="sticky top-0 px-4 py-1.5 text-2xs uppercase tracking-widest text-ink-dim border-b border-line-soft bg-canvas-raised flex items-center justify-between">
-            <span>{paletteQuery ? `/${paletteQuery}` : 'commands & shortcuts'}</span>
-            <button onClick={closePalette} className="text-ink-dim hover:text-ink"><X className="w-3 h-3" /></button>
+        <div className="absolute bottom-full left-0 right-0 max-h-[300px] overflow-y-auto bg-zinc-900 border-t border-zinc-800 shadow-xl">
+          <div className="sticky top-0 px-4 py-1.5 text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between">
+            <span>{paletteQuery ? `/${paletteQuery}` : 'AI tools & shortcuts'}</span>
+            <button onClick={closePalette} className="text-zinc-500 hover:text-zinc-200"><X className="w-3.5 h-3.5" /></button>
           </div>
           <ul>
             {rows.map((r, i) => {
@@ -154,17 +126,15 @@ export function MessengerCompose({
                   <button
                     onClick={() => chooseRow(r)}
                     onMouseEnter={() => setPaletteIdx(i)}
-                    className={cn(
-                      'w-full text-left px-4 py-2.5 flex items-start gap-3 transition-colors',
-                      isActive ? 'bg-canvas-inset' : 'hover:bg-canvas-inset/60',
-                    )}
+                    className={`w-full text-left px-4 py-2 flex items-start gap-3 transition-colors ${
+                      isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/70'
+                    }`}
                   >
-                    <span className={cn(
-                      'font-mono text-sm shrink-0 w-24',
-                      isAction ? 'text-gold' : 'text-info',
-                    )}>{r.label}</span>
-                    <span className="text-xs text-ink-muted line-clamp-2 flex-1">{r.hint}</span>
-                    {isAction && <span className="text-2xs uppercase tracking-widest text-gold/60 shrink-0">AI</span>}
+                    <span className={`font-mono text-sm shrink-0 w-24 ${isAction ? 'text-emerald-400' : 'text-blue-400'}`}>
+                      {r.label}
+                    </span>
+                    <span className="text-xs text-zinc-400 line-clamp-2 flex-1">{r.hint}</span>
+                    {isAction && <span className="text-2xs uppercase tracking-wider text-emerald-500/70 shrink-0">AI</span>}
                   </button>
                 </li>
               );
@@ -174,74 +144,44 @@ export function MessengerCompose({
       )}
 
       {/* Compose row */}
-      <div className="px-3 py-2.5">
-        <div className="max-w-[920px] mx-auto flex items-end gap-2">
-          {/* Attach */}
-          <button
-            className="w-9 h-9 shrink-0 rounded-md text-ink-muted hover:text-ink hover:bg-canvas-inset flex items-center justify-center"
-            title="Attach"
-          >
-            <Paperclip className="w-4 h-4" />
-          </button>
+      <div className="px-3 py-2.5 flex items-end gap-2">
+        <button className="w-9 h-9 shrink-0 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center" title="Attach">
+          <Paperclip className="w-4 h-4" />
+        </button>
 
-          {/* / chip — visible affordance */}
-          <button
-            onClick={toggleSlash}
-            className={cn(
-              'h-9 shrink-0 px-2.5 rounded-md text-2xs font-medium border flex items-center gap-1.5 transition-colors',
-              paletteOpen
-                ? 'bg-gold/15 border-gold/40 text-gold'
-                : 'border-line text-ink-muted hover:text-ink hover:border-line-strong',
-            )}
-            title="Commands & shortcuts"
-          >
-            <Slash className="w-3.5 h-3.5" />
-            <span>tools</span>
-          </button>
+        <button
+          onClick={toggleAI}
+          className={`w-9 h-9 shrink-0 rounded-md flex items-center justify-center transition-colors ${
+            paletteOpen ? 'bg-emerald-500/15 text-emerald-400' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+          }`}
+          title="AI tools & shortcuts (/)"
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+        </button>
 
-          {/* Input */}
-          <div className="flex-1 relative">
-            <textarea
-              ref={ref}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Write a message…   /  for AI tools and shortcuts"
-              rows={1}
-              className="w-full resize-none min-h-[44px] max-h-[180px] px-3.5 py-2.5 bg-canvas-panel border border-line rounded-md text-[15px] leading-snug text-ink placeholder:text-ink-dim focus:border-gold/50 focus:ring-1 focus:ring-gold/30 outline-none"
-            />
-          </div>
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Write a message…   /  for AI tools and shortcuts"
+          rows={1}
+          className="flex-1 resize-none min-h-[40px] max-h-[180px] px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-md text-sm leading-snug text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 outline-none"
+        />
 
-          {/* AI sparkles — opens the same palette pre-positioned at AI section */}
-          <button
-            onClick={toggleSlash}
-            className={cn(
-              'w-9 h-9 shrink-0 rounded-md border flex items-center justify-center transition-colors',
-              busy ? 'border-gold/40 text-gold' :
-                paletteOpen ? 'bg-gold/15 border-gold/40 text-gold' :
-                'border-line text-ink-muted hover:text-ink hover:border-line-strong',
-            )}
-            title="AI tools"
-          >
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          </button>
-
-          {/* Send */}
-          <button
-            onClick={handleSend}
-            disabled={!text.trim()}
-            className={cn(
-              'h-9 px-4 shrink-0 rounded-md font-medium text-sm flex items-center gap-1.5 transition-colors',
-              text.trim()
-                ? 'bg-gold text-canvas hover:bg-gold-bright'
-                : 'bg-canvas-inset text-ink-dim cursor-not-allowed',
-            )}
-            title="Send (⌘↵)"
-          >
-            <Send className="w-4 h-4" />
-            <span className="hidden sm:inline">Send</span>
-          </button>
-        </div>
+        <button
+          onClick={handleSend}
+          disabled={!text.trim()}
+          className={`h-9 px-4 shrink-0 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${
+            text.trim()
+              ? 'bg-emerald-500 text-zinc-900 hover:bg-emerald-400'
+              : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+          }`}
+          title="Send (⌘↵)"
+        >
+          <Send className="w-4 h-4" />
+          <span>Send</span>
+        </button>
       </div>
     </div>
   );

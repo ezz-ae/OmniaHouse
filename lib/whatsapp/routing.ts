@@ -112,8 +112,35 @@ export function normalizeE164(raw: string): string {
   return p;
 }
 
+/**
+ * Mask phone for LOGS and AI PROMPTS only. Per Implementation Book §15.3 —
+ * "Customer phones masked (+971•••227) in prompts unless requester has
+ * view_customer_private."
+ * DO NOT use this in the agent's own UI. The agent needs to see the number.
+ */
 export function maskPhoneForLogs(phone: string): string {
   const cleaned = phone.replace(/[^\d+]/g, '');
   if (cleaned.length < 6) return cleaned;
   return `${cleaned.slice(0, 4)}•••${cleaned.slice(-3)}`;
+}
+
+/**
+ * Display-format an E.164 phone for the agent's screen.
+ * +971501234884 → +971 50 123 4884
+ * +966507733091 → +966 50 773 3091
+ * +965XXXXXXX   → +965 XX XX XX XX (best-effort grouping)
+ */
+export function formatPhone(phone: string): string {
+  if (!phone) return '';
+  const cleaned = phone.replace(/[^\d+]/g, '');
+  if (!cleaned.startsWith('+')) return cleaned;
+
+  // GCC patterns — country code (3 digits) + 9-digit national number
+  const gcc = cleaned.match(/^(\+9(?:71|66|65|73|74|68))(\d{2})(\d{3})(\d{4})$/);
+  if (gcc) return `${gcc[1]} ${gcc[2]} ${gcc[3]} ${gcc[4]}`;
+
+  // Fallback: group last digits in 3s/4s
+  if (cleaned.length === 12) return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 6)} ${cleaned.slice(6, 9)} ${cleaned.slice(9)}`;
+  if (cleaned.length === 13) return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7, 10)} ${cleaned.slice(10)}`;
+  return cleaned;
 }

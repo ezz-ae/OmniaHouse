@@ -1,40 +1,23 @@
 'use client';
 
-import { Badge, Dot } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { StoreChip } from '@/components/ui/store-chip';
-import { cn, formatAED } from '@/lib/utils';
-import {
-  Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check,
-  ArrowRight, Link2, AlertTriangle, Crown,
-} from 'lucide-react';
 import { useState } from 'react';
+import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle } from 'lucide-react';
 import { routeForOrder } from '@/lib/whatsapp/routing';
-import type {
-  Extraction, ReplyOptimization, PaymentVerification, Magazine,
-  CustomerCard,
-} from '@/lib/whatsapp/types';
+import { formatAED } from '@/lib/utils';
+import type { Extraction, ReplyOptimization, PaymentVerification, Magazine, CustomerCard } from '@/lib/whatsapp/types';
 
 /**
- * AI Cards that live INSIDE the conversation thread.
- * Each one is a turn the agent can scroll through, dismiss, or act on.
- * They are sized to feel like message bubbles, not panels.
+ * AI cards — comfortable mature sizing, single sans-serif, no fashion.
+ * Content is the subject. Decoration is absent host.
  */
 
-// ─── Extract card ──────────────────────────────────────────────────────────
+// ─── Extract ───────────────────────────────────────────────────────────────
 
 export function ExtractCard({
-  data,
-  card,
-  at,
-  onDismiss,
-  onPush,
+  data, card, at, onDismiss, onPush,
 }: {
-  data: Extraction;
-  card: CustomerCard;
-  at: string;
-  onDismiss?: () => void;
-  onPush?: (target: 'shopify' | 'woocommerce') => void;
+  data: Extraction; card: CustomerCard; at: string;
+  onDismiss?: () => void; onPush?: (target: 'shopify' | 'woocommerce') => void;
 }) {
   const total = data.selected_products.reduce((s, p) => s + (p.price_aed || 0) * p.qty, 0);
   const routing = data.selected_products.length > 0
@@ -48,221 +31,193 @@ export function ExtractCard({
   const cashback = data.cashback_suggestion.eligible ? data.cashback_suggestion.amount_aed : 0;
 
   return (
-    <CardShell tone="gold" icon={Sparkles} title="Extracted order" at={at} onDismiss={onDismiss}>
-      {/* Intent + confidence */}
-      <div className="flex items-center justify-between text-2xs text-ink-dim mb-3">
-        <span><span className="text-ink">{data.intent.replace(/_/g, ' ')}</span> · confidence {Math.round(data.intent_score * 100)}%</span>
-        <div className="flex items-center gap-1">
-          <Pill ok={data.order_ready} label="order" />
-          <Pill ok={data.shipping_ready} label="shipping" />
+    <Shell tone="emerald" icon={Sparkles} title="Extracted order" at={at} onDismiss={onDismiss}>
+      {/* Intent line */}
+      <div className="flex items-center justify-between text-sm mb-3 pb-3 border-b border-zinc-700">
+        <span className="text-zinc-300">
+          <span className="text-zinc-100 font-medium capitalize">{data.intent.replace(/_/g, ' ')}</span>
+          <span className="text-zinc-500"> · {Math.round(data.intent_score * 100)}% confidence</span>
+        </span>
+        <div className="flex items-center gap-1.5">
+          <Tag ok={data.order_ready}>order ready</Tag>
+          <Tag ok={data.shipping_ready}>shipping ready</Tag>
         </div>
       </div>
 
       {/* Risk flags */}
       {data.risk_flags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {data.risk_flags.map((f) => <Badge key={f} tone="bad">{f.replace(/_/g, ' ')}</Badge>)}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {data.risk_flags.map((f) => (
+            <span key={f} className="px-2 py-0.5 rounded text-xs bg-rose-500/15 text-rose-300 border border-rose-500/30">
+              {f.replace(/_/g, ' ')}
+            </span>
+          ))}
         </div>
       )}
 
       {/* Items */}
       {data.selected_products.length > 0 && (
-        <ul className="space-y-1.5 mb-3">
-          {data.selected_products.map((it) => (
-            <li key={it.sku} className="flex items-center gap-2">
-              <span className="flex-1 min-w-0">
-                <span className="text-sm text-ink">{it.title}</span>
-                <span className="text-2xs text-ink-dim font-mono ml-1">{it.sku}{it.ring_size && ` · size ${it.ring_size}`}</span>
-              </span>
-              <span className="text-sm numeric text-ink shrink-0">{it.qty} × {it.price_aed ? formatAED(it.price_aed) : '?'}</span>
-              {it.store_source && <StoreChip store={it.store_source} />}
-            </li>
-          ))}
-        </ul>
+        <div className="mb-3">
+          <div className="text-xs uppercase tracking-wider text-zinc-500 mb-1.5">Items</div>
+          <ul className="space-y-1.5">
+            {data.selected_products.map((it) => (
+              <li key={it.sku} className="flex items-center gap-3 text-sm">
+                <span className="flex-1 min-w-0">
+                  <span className="text-zinc-100">{it.title}</span>
+                  <span className="text-zinc-500 ml-2 font-mono text-xs">{it.sku}{it.ring_size && ` · size ${it.ring_size}`}</span>
+                </span>
+                <span className="text-zinc-100 numeric shrink-0">{it.qty} × {it.price_aed ? formatAED(it.price_aed) : '?'}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Shipping */}
       {(data.area || data.building || data.emirate_or_city) && (
-        <div className="mb-3 text-2xs">
-          <span className="text-ink-dim">ship to </span>
-          <span className="text-ink">{[data.building, data.area, data.emirate_or_city].filter(Boolean).join(', ')}</span>
+        <div className="mb-3 text-sm">
+          <div className="text-xs uppercase tracking-wider text-zinc-500 mb-1">Shipping</div>
+          <div className="text-zinc-100">{[data.building, data.area, data.emirate_or_city].filter(Boolean).join(', ')}</div>
           {data.preferred_delivery_window && (
-            <span className="text-ink-dim"> · by <span className="text-ink">{data.preferred_delivery_window}</span></span>
+            <div className="text-zinc-400 text-xs mt-0.5">by {data.preferred_delivery_window}</div>
           )}
         </div>
       )}
 
-      {/* Total + cashback + actions */}
-      <div className="border-t border-line-soft pt-3 mt-3 -mx-3 px-3 flex items-center justify-between gap-2">
+      {/* Total + push */}
+      <div className="pt-3 border-t border-zinc-700 flex items-center justify-between gap-3">
         <div>
-          <div className="text-2xs uppercase tracking-widest text-ink-dim">Total</div>
-          <div className="font-serif text-xl text-gold numeric">{total > 0 ? formatAED(total) : '—'}</div>
+          <div className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">Total</div>
+          <div className="text-lg font-semibold text-zinc-100 numeric">{total > 0 ? formatAED(total) : '—'}</div>
           {cashback > 0 && (
-            <div className="text-2xs text-good numeric">+{formatAED(cashback)} cashback (LE)</div>
+            <div className="text-xs text-emerald-400 numeric mt-0.5">+{formatAED(cashback)} cashback (LE)</div>
           )}
         </div>
         {routing && (
-          <Button
-            variant="primary"
-            size="sm"
+          <button
             onClick={() => onPush?.(routing.default_store as 'shopify' | 'woocommerce')}
+            className="px-3 h-9 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 flex items-center gap-1.5"
           >
-            Push to {routing.default_store === 'shopify' ? '.ae' : '.com'} <ArrowRight className="w-3 h-3" />
-          </Button>
+            Push to {routing.default_store === 'shopify' ? '.ae' : '.com'}
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
       {routing && (
-        <div className="text-2xs text-ink-dim mt-1.5">{routing.reason}</div>
+        <div className="text-xs text-zinc-500 mt-2">{routing.reason}</div>
       )}
-    </CardShell>
+    </Shell>
   );
 }
 
-// ─── Reply optimizer card ──────────────────────────────────────────────────
+// ─── Optimize ──────────────────────────────────────────────────────────────
 
 export function OptimizeCard({
-  data,
-  at,
-  onDismiss,
-  onApply,
+  data, at, onDismiss, onApply,
 }: {
-  data: ReplyOptimization;
-  at: string;
-  onDismiss?: () => void;
-  onApply?: () => void;
+  data: ReplyOptimization; at: string; onDismiss?: () => void; onApply?: () => void;
 }) {
-  const tone = data.prediction === 'conversion_likely' ? 'good' : 'bad';
+  const tone = data.prediction === 'conversion_likely' ? 'emerald' : 'rose';
   return (
-    <CardShell tone={tone} icon={Zap} title={data.prediction === 'conversion_likely' ? 'Conversion likely' : 'Risk of losing'} at={at} onDismiss={onDismiss}>
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="font-serif text-2xl text-gold numeric">{data.conversion_probability}%</span>
-        <span className="text-2xs text-ink-dim">predicted close</span>
+    <Shell tone={tone} icon={Zap} title={data.prediction === 'conversion_likely' ? 'Conversion likely' : 'Risk of losing'} at={at} onDismiss={onDismiss}>
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-2xl font-semibold text-zinc-100 numeric">{data.conversion_probability}%</span>
+        <span className="text-xs text-zinc-400">predicted close</span>
       </div>
-      {data.warning && <p className="text-2xs text-bad mb-2">{data.warning}</p>}
-      <p className="text-2xs text-ink-muted mb-3">{data.recommendation}</p>
-
+      {data.warning && <p className="text-sm text-rose-300 mb-3">{data.warning}</p>}
+      <p className="text-sm text-zinc-300 mb-3">{data.recommendation}</p>
       {data.changes.length > 0 && (
-        <ul className="space-y-1 mb-3">
+        <ul className="space-y-1.5 mb-3 pb-3 border-b border-zinc-700">
           {data.changes.slice(0, 3).map((c, i) => (
-            <li key={i} className="text-2xs text-ink-muted">
-              <span className="text-ink font-medium">{c.reason}</span> — {c.after}
+            <li key={i} className="text-sm text-zinc-400">
+              <span className="text-zinc-100 font-medium">{c.reason}</span> — {c.after}
             </li>
           ))}
         </ul>
       )}
-
-      <div className="border-t border-line-soft pt-3 -mx-3 px-3 flex items-center gap-2">
-        <Button variant="primary" size="sm" onClick={onApply}>Use rewrite</Button>
-        <CopyChip text={data.optimized_draft.en} label="EN" />
-        <CopyChip text={data.optimized_draft.ar} label="AR" />
+      <div className="flex items-center gap-2">
+        <button onClick={onApply} className="px-3 h-8 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400">Use rewrite</button>
+        <CopyBtn text={data.optimized_draft.en} label="Copy EN" />
+        <CopyBtn text={data.optimized_draft.ar} label="Copy AR" />
       </div>
-    </CardShell>
+    </Shell>
   );
 }
 
-// ─── Payment verification card ─────────────────────────────────────────────
+// ─── Verify ────────────────────────────────────────────────────────────────
 
 export function VerifyCard({
-  data,
-  at,
-  forFilename,
-  onDismiss,
+  data, at, forFilename, onDismiss,
 }: {
-  data: PaymentVerification;
-  at: string;
-  forFilename?: string;
-  onDismiss?: () => void;
+  data: PaymentVerification; at: string; forFilename?: string; onDismiss?: () => void;
 }) {
-  const tone = data.is_authentic ? 'good' : 'bad';
+  const tone = data.is_authentic ? 'emerald' : 'rose';
   return (
-    <CardShell tone={tone} icon={data.is_authentic ? ShieldCheck : ShieldAlert} title={data.is_authentic ? 'Payment looks authentic' : 'Possible fraud'} at={at} onDismiss={onDismiss}>
-      {forFilename && (
-        <div className="text-2xs font-mono text-ink-dim mb-2 truncate">re: {forFilename}</div>
-      )}
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="font-serif text-2xl text-gold numeric">{data.verification_score}<span className="text-ink-dim text-sm">%</span></span>
-        <Badge tone={data.is_authentic ? 'good' : 'bad'}>{data.action.replace(/_/g, ' ')}</Badge>
-        <Badge tone="info">{data.bank_detected}</Badge>
+    <Shell tone={tone} icon={data.is_authentic ? ShieldCheck : ShieldAlert} title={data.is_authentic ? 'Payment looks authentic' : 'Possible fraud'} at={at} onDismiss={onDismiss}>
+      {forFilename && <div className="text-xs font-mono text-zinc-500 mb-2 truncate">{forFilename}</div>}
+      <div className="flex items-baseline gap-3 mb-3">
+        <span className="text-2xl font-semibold text-zinc-100 numeric">{data.verification_score}<span className="text-base text-zinc-500">%</span></span>
+        <span className={`text-xs px-2 py-0.5 rounded uppercase tracking-wider ${data.is_authentic ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'}`}>{data.action.replace(/_/g, ' ')}</span>
+        <span className="text-xs text-zinc-400">{data.bank_detected}</span>
       </div>
-      <p className="text-2xs text-ink-muted mb-3">{data.reasoning}</p>
+      <p className="text-sm text-zinc-300 mb-3">{data.reasoning}</p>
       {data.discrepancies.length > 0 && (
-        <ul className="space-y-1 mb-2">
+        <ul className="space-y-1.5 mb-3 pb-3 border-b border-zinc-700">
           {data.discrepancies.map((d, i) => (
-            <li key={i} className="text-2xs text-ink-muted flex items-start gap-1.5">
-              <AlertTriangle className="w-3 h-3 text-bad mt-0.5 shrink-0" />
+            <li key={i} className="text-sm text-zinc-400 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" />
               <span>{d}</span>
             </li>
           ))}
         </ul>
       )}
-      <div className="grid grid-cols-3 gap-1.5 text-2xs pt-2 border-t border-line-soft -mx-3 px-3">
-        <MetaDot label="Status bar" ok={data.metadata_consistency.status_bar_match} />
-        <MetaDot label="Resolution" ok={data.metadata_consistency.resolution_match} />
-        <MetaDot label="Timestamp" ok={data.metadata_consistency.timestamp_match} />
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <Meta ok={data.metadata_consistency.status_bar_match} label="Status bar" />
+        <Meta ok={data.metadata_consistency.resolution_match} label="Resolution" />
+        <Meta ok={data.metadata_consistency.timestamp_match} label="Timestamp" />
       </div>
-    </CardShell>
+    </Shell>
   );
 }
 
-// ─── Magazine preview card ─────────────────────────────────────────────────
+// ─── Magazine ──────────────────────────────────────────────────────────────
 
-export function MagazineCard({
-  data,
-  at,
-  onDismiss,
-}: {
-  data: Magazine;
-  at: string;
-  onDismiss?: () => void;
-}) {
+export function MagazineCard({ data, at, onDismiss }: { data: Magazine; at: string; onDismiss?: () => void }) {
   return (
-    <CardShell tone="gold" icon={BookOpen} title="Personalized magazine" at={at} onDismiss={onDismiss}>
-      <h4 className="font-serif text-lg text-gold leading-tight mb-2">{data.magazine_headline}</h4>
-      <p className="text-2xs text-ink-muted leading-relaxed whitespace-pre-line mb-3">{data.editorial_content}</p>
-      <div className="border-t border-line-soft pt-2 -mx-3 px-3 flex items-center justify-between text-2xs">
-        <span className="text-ink-dim">Featured LE</span>
+    <Shell tone="emerald" icon={BookOpen} title="Personalized magazine" at={at} onDismiss={onDismiss}>
+      <h4 className="text-base font-semibold text-zinc-100 mb-2">{data.magazine_headline}</h4>
+      <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-line mb-3 pb-3 border-b border-zinc-700">{data.editorial_content}</p>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-zinc-500">Featured LE</span>
         <div className="flex items-center gap-2">
-          <span className="font-mono text-ink">{data.featured_limited_edition_sku}</span>
-          <Badge tone="gold">code {data.cashback_code}</Badge>
+          <span className="font-mono text-zinc-100">{data.featured_limited_edition_sku}</span>
+          <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">code {data.cashback_code}</span>
         </div>
       </div>
-    </CardShell>
+    </Shell>
   );
 }
 
-// ─── Shortcut expansion card ───────────────────────────────────────────────
+// ─── Shortcut ──────────────────────────────────────────────────────────────
 
 export function ShortcutCard({
-  trigger,
-  en,
-  ar,
-  at,
-  onUseEN,
-  onUseAR,
-  onUseBoth,
-  onDismiss,
+  trigger, en, ar, at, onUseEN, onUseAR, onUseBoth, onDismiss,
 }: {
-  trigger: string;
-  en: string;
-  ar: string;
-  at: string;
-  onUseEN?: () => void;
-  onUseAR?: () => void;
-  onUseBoth?: () => void;
-  onDismiss?: () => void;
+  trigger: string; en: string; ar: string; at: string;
+  onUseEN?: () => void; onUseAR?: () => void; onUseBoth?: () => void; onDismiss?: () => void;
 }) {
   return (
-    <CardShell tone="info" icon={Sparkles} title={`shortcut ${trigger}`} at={at} onDismiss={onDismiss}>
-      <div className="space-y-2 mb-3">
-        <div className="text-sm text-ink-muted leading-relaxed">{en}</div>
-        <div className="text-sm text-ink-muted leading-relaxed font-serif" dir="rtl">{ar}</div>
+    <Shell tone="blue" icon={Sparkles} title={`Template ${trigger}`} at={at} onDismiss={onDismiss}>
+      <div className="space-y-2 mb-3 pb-3 border-b border-zinc-700">
+        <div className="text-sm text-zinc-300 leading-relaxed">{en}</div>
+        <div className="text-sm text-zinc-300 leading-relaxed" dir="rtl">{ar}</div>
       </div>
-      <div className="flex items-center gap-1.5 border-t border-line-soft pt-2 -mx-3 px-3">
-        <Button variant="subtle" size="sm" onClick={onUseEN}>Use EN</Button>
-        <Button variant="subtle" size="sm" onClick={onUseAR}>Use AR</Button>
-        <Button variant="primary" size="sm" onClick={onUseBoth}>Use both</Button>
+      <div className="flex items-center gap-2">
+        <button onClick={onUseEN} className="px-3 h-8 rounded-md bg-zinc-800 text-zinc-100 text-sm hover:bg-zinc-700 border border-zinc-700">Use EN</button>
+        <button onClick={onUseAR} className="px-3 h-8 rounded-md bg-zinc-800 text-zinc-100 text-sm hover:bg-zinc-700 border border-zinc-700">Use AR</button>
+        <button onClick={onUseBoth} className="px-3 h-8 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400">Use both</button>
       </div>
-    </CardShell>
+    </Shell>
   );
 }
 
@@ -270,61 +225,49 @@ export function ShortcutCard({
 
 export function SystemNote({ text, tone = 'info', at }: { text: string; tone?: 'info' | 'warn' | 'good'; at: string }) {
   const tones = {
-    info: 'text-ink-dim border-line-soft',
-    warn: 'text-warn border-warn/30 bg-warn/5',
-    good: 'text-good border-good/30 bg-good/5',
+    info: 'text-zinc-400 bg-zinc-800/60 border-zinc-700',
+    warn: 'text-amber-300 bg-amber-500/10 border-amber-500/30',
+    good: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30',
   };
   return (
-    <div className={cn('mx-auto px-3 py-1 rounded-full text-2xs border', tones[tone])}>
+    <div className={`px-3 py-1 rounded-full text-xs border ${tones[tone]}`}>
       <span className="opacity-70 mr-2 numeric">{at}</span>
       {text}
     </div>
   );
 }
 
-// ─── Shared shell ──────────────────────────────────────────────────────────
+// ─── Shared ────────────────────────────────────────────────────────────────
 
-function CardShell({
-  tone,
-  icon: Icon,
-  title,
-  at,
-  children,
-  onDismiss,
+function Shell({
+  tone, icon: Icon, title, at, children, onDismiss,
 }: {
-  tone: 'gold' | 'good' | 'bad' | 'info' | 'warn';
+  tone: 'emerald' | 'rose' | 'amber' | 'blue';
   icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  at: string;
-  children: React.ReactNode;
-  onDismiss?: () => void;
+  title: string; at: string; children: React.ReactNode; onDismiss?: () => void;
 }) {
-  const tones = {
-    gold: 'border-gold/30 bg-gold/[0.04]',
-    good: 'border-good/30 bg-good/[0.04]',
-    bad:  'border-bad/30  bg-bad/[0.04]',
-    info: 'border-info/30 bg-info/[0.04]',
-    warn: 'border-warn/30 bg-warn/[0.04]',
-  };
-  const iconTones = {
-    gold: 'text-gold',
-    good: 'text-good',
-    bad:  'text-bad',
-    info: 'text-info',
-    warn: 'text-warn',
-  };
+  const ring = {
+    emerald: 'border-emerald-500/30',
+    rose:    'border-rose-500/30',
+    amber:   'border-amber-500/30',
+    blue:    'border-blue-500/30',
+  }[tone];
+  const iconColor = {
+    emerald: 'text-emerald-400',
+    rose:    'text-rose-400',
+    amber:   'text-amber-400',
+    blue:    'text-blue-400',
+  }[tone];
   return (
-    <div className={cn('rounded-lg border px-3 py-2.5 max-w-[560px]', tones[tone])}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <Icon className={cn('w-3.5 h-3.5', iconTones[tone])} />
-          <span className="text-2xs uppercase tracking-widest text-ink">{title}</span>
+    <div className={`rounded-lg border ${ring} bg-zinc-800/80 p-4 max-w-[600px]`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${iconColor}`} />
+          <span className="text-sm font-medium text-zinc-100">{title}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-2xs text-ink-dim numeric">{at}</span>
-          {onDismiss && (
-            <button onClick={onDismiss} className="text-ink-dim hover:text-ink"><X className="w-3 h-3" /></button>
-          )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500 numeric">{at}</span>
+          {onDismiss && <button onClick={onDismiss} className="text-zinc-500 hover:text-zinc-200"><X className="w-3.5 h-3.5" /></button>}
         </div>
       </div>
       {children}
@@ -332,31 +275,34 @@ function CardShell({
   );
 }
 
-function Pill({ ok, label }: { ok: boolean; label: string }) {
+function Tag({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs border', ok ? 'border-good/30 text-good bg-good/10' : 'border-bad/30 text-bad bg-bad/10')}>
-      <Dot tone={ok ? 'good' : 'bad'} /> {label}
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${
+      ok ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-zinc-600 text-zinc-500 bg-zinc-800'
+    }`}>
+      <span className={`w-1 h-1 rounded-full ${ok ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+      {children}
     </span>
   );
 }
 
-function MetaDot({ label, ok }: { label: string; ok: boolean }) {
+function Meta({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <div className="flex items-center gap-1">
-      <Dot tone={ok ? 'good' : 'bad'} />
-      <span className="text-ink-dim">{label}</span>
+    <div className="flex items-center gap-1.5">
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+      <span className="text-zinc-400">{label}</span>
     </div>
   );
 }
 
-function CopyChip({ text, label }: { text: string; label: string }) {
+function CopyBtn({ text, label }: { text: string; label: string }) {
   const [c, setC] = useState(false);
   return (
     <button
       onClick={() => { navigator.clipboard?.writeText(text); setC(true); setTimeout(() => setC(false), 1200); }}
-      className="flex items-center gap-1 h-6 px-2 rounded text-2xs border border-line text-ink-dim hover:text-ink"
+      className="px-3 h-8 rounded-md bg-zinc-800 text-zinc-100 text-sm hover:bg-zinc-700 border border-zinc-700 flex items-center gap-1.5"
     >
-      {c ? <Check className="w-3 h-3 text-good" /> : <Copy className="w-3 h-3" />}
+      {c ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
       {label}
     </button>
   );

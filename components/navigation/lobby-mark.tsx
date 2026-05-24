@@ -2,23 +2,26 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { findRoom } from '@/lib/rooms';
 import { cn } from '@/lib/utils';
 import { Kbd } from '@/components/ui/button';
 
 /**
- * The only persistent UI element across rooms.
- * Top-left, small, recedes. Click → back to the lobby.
- * Hover reveals the room name + the ⌘K hint.
- * Auto-hidden on the lobby itself.
+ * Floating brand badge → lobby.
+ * Hidden on the lobby itself, on public portal routes, and on rooms
+ * that have their own top nav (WhatsApp Desk).
  */
 export function LobbyMark() {
   const pathname = usePathname();
   const [hover, setHover] = useState(false);
 
-  // Hide on lobby and on the public customer portal
-  if (pathname === '/' || pathname === '/house' || pathname.startsWith('/portal')) {
+  if (
+    pathname === '/' ||
+    pathname === '/house' ||
+    pathname.startsWith('/portal') ||
+    pathname.startsWith('/whatsapp-desk')
+  ) {
     return null;
   }
 
@@ -38,11 +41,9 @@ export function LobbyMark() {
           hover ? 'border-gold/40 shadow-glow' : 'border-line-soft',
         )}
       >
-        {/* Brand mark */}
         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gold to-gold-deep flex items-center justify-center font-serif text-canvas text-xs font-medium">
           O
         </div>
-        {/* Room name reveals on hover */}
         <span
           className={cn(
             'text-xs font-medium overflow-hidden transition-all',
@@ -56,7 +57,6 @@ export function LobbyMark() {
         </span>
       </Link>
 
-      {/* ⌘K hint, ambient under the badge */}
       {hover && (
         <div className="mt-2 flex items-center gap-1 pl-2 text-2xs text-ink-dim">
           <Kbd>⌘K</Kbd>
