@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { mockVerifyPayment } from '@/lib/whatsapp/mock';
 import { callJSON, isAIEnabled } from '@/lib/ai/client';
-import { MEDIA_VERIFICATION_PROMPT } from '@/lib/whatsapp/prompts';
+import { MEDIA_VERIFICATION_PROMPT } from '@/prompts/whatsapp';
 import type { PaymentVerification } from '@/lib/whatsapp/types';
 
 /**

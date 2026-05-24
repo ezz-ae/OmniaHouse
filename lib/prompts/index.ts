@@ -24,12 +24,13 @@
 // ─── WhatsApp Desk ─────────────────────────────────────────────────────────
 
 export {
+  WHATSAPP_PROMPT_VERSION,
   WHATSAPP_EXTRACTION_PROMPT,
   MESSAGE_OPTIMIZATION_PROMPT,
   MEDIA_VERIFICATION_PROMPT,
   OMNIA_MAGAZINE_PROMPT,
   WRITING_ASSISTANT_PROMPT,
-} from '@/lib/whatsapp/prompts';
+} from '@/prompts/whatsapp';
 
 // ─── Inventory ─────────────────────────────────────────────────────────────
 

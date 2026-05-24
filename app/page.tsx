@@ -7,18 +7,17 @@ import { Lock } from 'lucide-react';
 /**
  * Landing / auth page.
  *
- * One sentence. One thin lock-shaped input. Whoever knows the door code
- * gets in. (Swaps to real Supabase auth once keys are wired.)
+ * One sentence. One thin lock-shaped input. The passkey is checked by
+ * a server route so no door secret is bundled into the frontend.
  *
  * Motion background: three slow-moving radial-gradient blobs.
  */
-
-const DOOR_CODE = 'dontknow@2025';
 
 export default function LandingPage() {
   const router = useRouter();
   const [value, setValue] = useState('');
   const [wrong, setWrong] = useState(false);
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,17 +27,27 @@ export default function LandingPage() {
     }
   }, [router]);
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    if (value === DOOR_CODE) {
+    setLoading(true);
+    const res = await fetch('/api/auth/passkey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passkey: value }),
+    }).catch(() => null);
+    const json = await res?.json().catch(() => ({}));
+
+    if (res?.ok && json?.ok) {
       window.sessionStorage.setItem('oh:door', 'open');
       router.push('/house');
-    } else {
-      setWrong(true);
-      setValue('');
-      setTimeout(() => setWrong(false), 600);
-      inputRef.current?.focus();
+      return;
     }
+
+    setLoading(false);
+    setWrong(true);
+    setValue('');
+    setTimeout(() => setWrong(false), 600);
+    inputRef.current?.focus();
   }
 
   return (
@@ -59,6 +68,7 @@ export default function LandingPage() {
             type="password"
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            disabled={loading}
             autoComplete="off"
             spellCheck={false}
             className={`w-full h-9 pl-9 pr-3 bg-zinc-900/60 backdrop-blur-md border rounded-full text-sm tracking-widest text-zinc-100 outline-none transition-colors ${

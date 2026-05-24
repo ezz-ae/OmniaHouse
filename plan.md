@@ -231,7 +231,7 @@ The rooms can be:
 
 Reception / House Home The first screen. Shows daily status, alerts, pending actions, announcements, and key rooms.
 
-WhatsApp Order Room The first finished room. Converts WhatsApp conversation into order draft, shipping info, missing fields, follow-up, and management summary.
+WhatsApp Desk The first finished room. Converts WhatsApp conversation into order draft, shipping info, missing fields, follow-up, and management summary.
 
 Inventory Room Product search, imported Shopify products, stock, product intelligence, AI product recommendations.
 
@@ -267,7 +267,7 @@ Login House home Sidebar rooms Role-based layout Settings Coming-next placeholde
 
 Then finish one room:
 
-WhatsApp Order Room
+WhatsApp Desk
 
 That room proves the system is not decoration.
 
@@ -299,7 +299,7 @@ House Home
 
 
 
-WhatsApp Order Room
+WhatsApp Desk
 
 
 
@@ -379,7 +379,7 @@ Build the house structure:
 6. Coming-next room states
 
 Live rooms in V1:
-- WhatsApp Order Room
+- WhatsApp Desk
 - Inventory Room
 - Omnia AI
 - Reports Preview
@@ -413,7 +413,7 @@ House home should show:
 - Room cards
 
 Rules:
-- Only WhatsApp Order Room needs to be functional first.
+- Only WhatsApp Desk needs to be functional first.
 - Inventory Room should support CSV/demo data.
 - Omnia AI should answer from inventory/demo data.
 - All other rooms can be elegant coming-next placeholders.
@@ -439,7 +439,7 @@ When you show it:
 
 
 
- Open WhatsApp Order Room 
+ Open WhatsApp Desk 
 
 
 
@@ -531,7 +531,7 @@ For you or senior management.
 
 Can manage:
 
-Inventory  WhatsApp Order Room  AI tools  Reports  Follow-ups  Shipping preparation  Product intelligence  Team workflow
+Inventory  WhatsApp Desk  AI tools  Reports  Follow-ups  Shipping preparation  Product intelligence  Team workflow
 
 But not necessarily billing, owner settings, or permanent ownership controls.
 
@@ -627,7 +627,7 @@ view  create  edit  approve  delete  export  admin
 
 Example:
 
-WhatsApp Agent can:  view WhatsApp Order Room  create order draft  edit own drafts  create follow-ups  use AI reply assistant
+WhatsApp Agent can:  view WhatsApp Desk  create order draft  edit own drafts  create follow-ups  use AI reply assistant
 
 But cannot:  view finance summary  delete orders  change settings  export full customer database  approve integrations
 
@@ -675,7 +675,7 @@ Create departments:
 4. Rooms
 Rooms:
 - House Home
-- WhatsApp Order Room
+- WhatsApp Desk
 - Inventory Room
 - Omnia AI
 - Shipping Room
@@ -767,7 +767,7 @@ V1 access behavior
 
 For the first version:
 
-Omnia / Owner: sees everything.  Mahmoud / Growth Lead: sees build rooms, inventory, WhatsApp, reports, settings except ownership billing.  WhatsApp Agent: sees WhatsApp Order Room, Inventory search, follow-ups.  Shipping: sees only shipping queue and order delivery fields.  Marketing: sees product demand and AI content suggestions.  Developer: sees technical logs and integration settings, no finance/customer exports.  Viewer: sees selected reports only.
+Omnia / Owner: sees everything.  Mahmoud / Growth Lead: sees build rooms, inventory, WhatsApp, reports, settings except ownership billing.  WhatsApp Agent: sees WhatsApp Desk, Inventory search, follow-ups.  Shipping: sees only shipping queue and order delivery fields.  Marketing: sees product demand and AI content suggestions.  Developer: sees technical logs and integration settings, no finance/customer exports.  Viewer: sees selected reports only.
 
 The real foundation
 
@@ -803,7 +803,7 @@ The first build must be real today. Not experimental. Not a pitch. Not a PDF. A 
 
 The first finished room is:
 
-WhatsApp Order Room
+WhatsApp Desk
 
 Because WhatsApp already carries real sales, real customer conversations, real order submissions, and real daily operational pressure.
 
@@ -823,7 +823,7 @@ That matters because Omniastores is not a small side store. It has team, product
 
 The first version must include:
 
-Locked entrance  Company ownership  User roles  Room permissions  Audit logs  User-aware AI  WhatsApp Order Room  Inventory foundation  Reports foundation  Settings foundation  Future rooms visible but controlled
+Locked entrance  Company ownership  User roles  Room permissions  Audit logs  User-aware AI  WhatsApp Desk  Inventory foundation  Reports foundation  Settings foundation  Future rooms visible but controlled
 
 3. Ownership and access foundation
 
@@ -883,7 +883,7 @@ For Mahmoud.
 
 Can manage:
 
-WhatsApp Order Room  Inventory Room  Omnia AI  Reports  Follow-ups  Product intelligence  Workflow structure  Implementation testing  Developer coordination
+WhatsApp Desk  Inventory Room  Omnia AI  Reports  Follow-ups  Product intelligence  Workflow structure  Implementation testing  Developer coordination
 
 Cannot remove Owner.  Cannot transfer ownership.  Cannot access restricted finance unless granted.
 
@@ -1031,7 +1031,7 @@ Fast enough for immediate prototype.  Structured enough for production hardening
 
 Live in V1
 
-Locked Entrance  House Home  WhatsApp Order Room  Inventory Room  Omnia AI  Reports Preview  Settings / Access  Audit Logs
+Locked Entrance  House Home  WhatsApp Desk  Inventory Room  Omnia AI  Reports Preview  Settings / Access  Audit Logs
 
 Coming rooms
 
@@ -1045,7 +1045,7 @@ purpose  planned function  status: coming next  required access  dependencies
 
 This shows architecture without pretending everything is finished.
 
-9. First finished room: WhatsApp Order Room
+9. First finished room: WhatsApp Desk
 
 This is the proof room.
 
@@ -1057,7 +1057,7 @@ That is useful but weak because the details are unstructured.
 
 New flow
 
-Agent opens WhatsApp Order Room.  Agent selects product.  Agent pastes WhatsApp conversation.  AI extracts customer/order/shipping data.  System shows missing fields.  Agent reviews and edits.  System prepares order draft.  System prepares shipping draft.  System creates follow-up if needed.  System logs the action.  Management report updates.
+Agent opens WhatsApp Desk.  Agent selects product.  Agent pastes WhatsApp conversation.  AI extracts customer/order/shipping data.  System shows missing fields.  Agent reviews and edits.  System prepares order draft.  System prepares shipping draft.  System creates follow-up if needed.  System logs the action.  Management report updates.
 
 Why this room first
 
@@ -1067,7 +1067,7 @@ No culture change.  No huge training.  No theoretical AI.  No replacing the team
 
 It upgrades existing behavior.
 
-10. WhatsApp Order Room fields
+10. WhatsApp Desk fields
 
 Customer fields
 
@@ -1226,7 +1226,7 @@ Shows:
 
 Welcome  Room cards  Today’s control cards  Announcements preview placeholder  User role  Access indicator
 
-/whatsapp-order-room
+/whatsapp-desk
 
 Finished first room.
 
@@ -1286,7 +1286,7 @@ Step 4: Build House home
 
 Room cards and control cards.
 
-Step 5: Build WhatsApp Order Room
+Step 5: Build WhatsApp Desk
 
 This is the finished room.
 
@@ -1324,7 +1324,7 @@ It is not a public website, not a chatbot, not a generic dashboard, and not a CR
 It is a company-owned internal management system that will keep evolving.
 
 The first version must be buildable today and must include one finished room:
-WhatsApp Order Room.
+WhatsApp Desk.
 
 Tech stack:
 - Next.js App Router
@@ -1357,7 +1357,7 @@ Required departments:
 Management, WhatsApp Sales, Shipping, Finance, Marketing, Inventory, Development, Content.
 
 Required rooms:
-House Home, WhatsApp Order Room, Inventory Room, Omnia AI, Reports Room, Settings, Audit Logs.
+House Home, WhatsApp Desk, Inventory Room, Omnia AI, Reports Room, Settings, Audit Logs.
 
 Coming-next rooms:
 Shipping Room, Team Room, Departments, Announcements, Ideas Board, Voting Room, Drive Room, Webmail Room, Marketing Room, Finance Room, WordPress Content Room.
@@ -1371,7 +1371,7 @@ organizations, users, roles, departments, permissions, user_roles, rooms, room_p
 Pages:
 - /login
 - /house
-- /whatsapp-order-room
+- /whatsapp-desk
 - /inventory
 - /omnia-ai
 - /reports
@@ -1385,10 +1385,10 @@ Line: Inventory. WhatsApp. Orders. Intelligence. Control.
 
 Build /house:
 Show room cards and today control cards.
-Live rooms: WhatsApp Order Room, Inventory Room, Omnia AI, Reports.
+Live rooms: WhatsApp Desk, Inventory Room, Omnia AI, Reports.
 Coming-next rooms: Shipping, Team, Departments, Announcements, Ideas Board, Voting, Drive, Webmail, Marketing, Finance, WordPress Content.
 
-Build /whatsapp-order-room:
+Build /whatsapp-desk:
 Workflow:
 1. Agent selects product(s).
 2. Agent pastes WhatsApp conversation.
@@ -1470,7 +1470,7 @@ Evaluate:
 2. Role-based access
 3. User-aware AI
 4. Audit logs
-5. WhatsApp Order Room workflow
+5. WhatsApp Desk workflow
 6. Inventory foundation
 7. Reports usefulness
 8. Whether the first finished room is enough to prove execution
@@ -1492,7 +1492,7 @@ Say:
 
 Then demo:
 
-Login  House home  WhatsApp Order Room  Paste sample conversation  AI extracts data  Show missing fields  Show order draft  Show shipping draft  Save draft  Show report updated  Open Inventory  Open Omnia AI  Ask product question
+Login  House home  WhatsApp Desk  Paste sample conversation  AI extracts data  Show missing fields  Show order draft  Show shipping draft  Save draft  Show report updated  Open Inventory  Open Omnia AI  Ask product question
 
 Then stop.
 
@@ -1508,7 +1508,7 @@ Say:
 
 The system is real today if these work:
 
-User can log in.  User sees only allowed rooms.  Owner sees all rooms.  WhatsApp Agent can open WhatsApp Order Room.  Agent can paste a conversation.  AI extracts structured fields.  Missing fields are shown.  Order draft is saved.  Shipping draft is created.  Follow-up task is created.  Activity is logged.  Report updates.  Inventory can be imported or demo loaded.  Omnia AI answers from inventory only.  Audit log captures actions.
+User can log in.  User sees only allowed rooms.  Owner sees all rooms.  WhatsApp Agent can open WhatsApp Desk.  Agent can paste a conversation.  AI extracts structured fields.  Missing fields are shown.  Order draft is saved.  Shipping draft is created.  Follow-up task is created.  Activity is logged.  Report updates.  Inventory can be imported or demo loaded.  Omnia AI answers from inventory only.  Audit log captures actions.
 
 If these work, it is not a toy.
 

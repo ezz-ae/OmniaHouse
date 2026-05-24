@@ -10,7 +10,7 @@ Enable WhatsApp agents to paste raw conversation text and receive a structured J
 ## Files to be touched
 - `/Users/mahmoudezz/OminaHouse/app/api/ai/extract/route.ts` {role: new}
 - `/Users/mahmoudezz/OminaHouse/lib/prompts.ts`              {role: new}
-- `/Users/mahmoudezz/OminaHouse/app/(office)/whatsapp-order-room/page.tsx` {role: edit}
+- `/Users/mahmoudezz/OminaHouse/app/(office)/whatsapp-desk/page.tsx` {role: edit}
 
 ## Schema delta
 - No schema changes required; uses existing `order_submissions` and `ai_extractions` tables (to be created in the next migration).

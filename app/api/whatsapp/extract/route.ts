@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getConversations, mockExtract } from '@/lib/whatsapp/mock';
 import { callJSON, isAIEnabled } from '@/lib/ai/client';
-import { WHATSAPP_EXTRACTION_PROMPT } from '@/lib/whatsapp/prompts';
+import { WHATSAPP_EXTRACTION_PROMPT, WHATSAPP_PROMPT_VERSION } from '@/prompts/whatsapp';
 import type { Extraction, Conversation } from '@/lib/whatsapp/types';
 
 /**
@@ -40,7 +40,13 @@ export async function POST(req: Request) {
         userInput: `User role: ${userRole}\n\n### CHAT:\n${text}`,
       });
       if (real) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', extraction: real });
+        return NextResponse.json({
+          ok: true,
+          mode: 'real',
+          model: 'pro',
+          prompt_version: WHATSAPP_PROMPT_VERSION,
+          extraction: real,
+        });
       }
     }
 
@@ -48,6 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       mode: isAIEnabled() ? 'mock_fallback' : 'mock',
+      prompt_version: WHATSAPP_PROMPT_VERSION,
       extraction: mockExtract(fallbackConv!),
     });
   } catch (err: any) {

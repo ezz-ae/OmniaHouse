@@ -44,7 +44,7 @@ app/                       Next.js App Router
   (office)/                authed routes (middleware-gated)
     house/                 House Home — role-filtered room cards
     management/            Management Room
-    whatsapp-order-room/   WhatsApp Desk
+    whatsapp-desk/   WhatsApp Desk
   api/                     route handlers
 lib/                       server + client helpers (rbac, audit, inventory, prompts)
 components/                React components organized by domain

@@ -61,7 +61,7 @@ INSERT INTO roles (name) VALUES ('Owner'), ('Admin'), ('WhatsApp Manager'), ('Wh
 
 INSERT INTO rooms (name, slug, icon, sort_order) VALUES 
 ('House Home', 'house', 'Home', 0),
-('WhatsApp Order Room', 'whatsapp-order-room', 'MessageSquare', 1),
+('WhatsApp Desk', 'whatsapp-desk', 'MessageSquare', 1),
 ('Inventory Room', 'inventory', 'Package', 2),
 ('Reports Room', 'reports', 'BarChart', 3),
 ('Finance Room', 'finance', 'DollarSign', 4),
@@ -81,13 +81,13 @@ WHERE r.name IN ('Owner', 'Admin');
 -- Grant specific rooms to WhatsApp Agent
 INSERT INTO room_permissions (role_id, room_id)
 SELECT r.id, rm.id FROM roles r, rooms rm 
-WHERE r.name = 'WhatsApp Agent' AND rm.slug IN ('house', 'whatsapp-order-room', 'inventory');
+WHERE r.name = 'WhatsApp Agent' AND rm.slug IN ('house', 'whatsapp-desk', 'inventory');
 
 -- Grant specific rooms to Marketing and Finance
 INSERT INTO room_permissions (role_id, room_id)
 SELECT r.id, rm.id FROM roles r, rooms rm 
-WHERE (r.name = 'Marketing' AND rm.slug IN ('house', 'whatsapp-order-room', 'reports', 'omnia-ai', 'gemini-room'))
-   OR (r.name = 'Finance' AND rm.slug IN ('house', 'whatsapp-order-room', 'finance', 'reports'));
+WHERE (r.name = 'Marketing' AND rm.slug IN ('house', 'whatsapp-desk', 'reports', 'omnia-ai', 'gemini-room'))
+   OR (r.name = 'Finance' AND rm.slug IN ('house', 'whatsapp-desk', 'finance', 'reports'));
 
 -- Enable RLS
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;

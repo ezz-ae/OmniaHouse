@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { mockOptimizeReply } from '@/lib/whatsapp/mock';
 import { callJSON, isAIEnabled } from '@/lib/ai/client';
-import { MESSAGE_OPTIMIZATION_PROMPT } from '@/lib/whatsapp/prompts';
+import { MESSAGE_OPTIMIZATION_PROMPT } from '@/prompts/whatsapp';
 import type { ReplyOptimization } from '@/lib/whatsapp/types';
 
 /**

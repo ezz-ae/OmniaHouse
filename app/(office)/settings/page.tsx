@@ -40,6 +40,8 @@ export default function SettingsPage() {
           <Section title="Data">
             <Row label="Supabase URL" value={<EnvStatus name="NEXT_PUBLIC_SUPABASE_URL" />} />
             <Row label="Supabase anon key" value={<EnvStatus name="NEXT_PUBLIC_SUPABASE_ANON_KEY" />} />
+            <Row label="Prisma · pooled" value={<EnvStatus name="POSTGRES_PRISMA_URL" />} />
+            <Row label="Prisma · direct (migrations)" value={<EnvStatus name="POSTGRES_URL_NON_POOLING" />} />
             <Row label="Inventory live cache" value=".data/inventory-live.json · 30 min TTL" />
             <Row label="Office IP" value={<EnvStatus name="OFFICE_IP" />} />
           </Section>

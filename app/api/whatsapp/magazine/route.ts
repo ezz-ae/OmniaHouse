@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { mockMagazine } from '@/lib/whatsapp/mock';
 import { callJSON, isAIEnabled } from '@/lib/ai/client';
-import { OMNIA_MAGAZINE_PROMPT } from '@/lib/whatsapp/prompts';
+import { OMNIA_MAGAZINE_PROMPT } from '@/prompts/whatsapp';
 import type { Magazine } from '@/lib/whatsapp/types';
 
 /**

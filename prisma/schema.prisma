@@ -1,0 +1,398 @@
+// House of Omnia — Prisma schema
+//
+// One TypeScript-typed client over the same tables defined in
+// db/migrations/. Models mirror the SQL column-for-column, so when
+// a migration adds a column, only the matching model changes here.
+//
+// Workflow
+//   · Tables are created by running the SQL files in db/migrations/
+//     against the Supabase project (SQL Editor → paste in order).
+//   · Once tables exist, `npx prisma db pull` will refresh this file
+//     from the live schema. The starter models below mirror the
+//     migrations and are accurate as of 20260615.
+//   · `npx prisma generate` produces the typed client. Vercel runs
+//     this automatically because we added it to the build script.
+//
+// Connection
+//   Vercel's Supabase integration injects POSTGRES_PRISMA_URL (the
+//   pgbouncer pool, used by the running app) and POSTGRES_URL_NON_POOLING
+//   (the direct connection, used by migrations and `db pull`). Same
+//   variables locally — see .env.example.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+// ─── RBAC primitives (20260523_init_rbac.sql) ──────────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  owner_id  String?  @db.Uuid
+  settings  Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  user_roles UserRole[]
+  team_profiles TeamProfile[]
+  agentic_tasks AgenticTask[]
+  ai_memory AIMemory[]
+  order_submissions OrderSubmission[]
+  customer_wallets CustomerWallet[]
+  products Product[]
+  org_integrations OrgIntegration[]
+
+  @@map("organizations")
+}
+
+model Role {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String @unique
+  description String?
+
+  user_roles UserRole[]
+  @@map("roles")
+}
+
+model UserRole {
+  user_id          String  @db.Uuid
+  role_id          String  @db.Uuid
+  org_id           String  @db.Uuid
+  last_sign_in_ip  String?
+  is_locked        Boolean @default(false)
+  lock_reason      String?
+
+  role         Role         @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id, org_id])
+  @@map("user_roles")
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String?  @db.Uuid
+  org_id     String?  @db.Uuid
+  action     String
+  room_slug  String?
+  metadata   Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, created_at(sort: Desc)])
+  @@map("activity_logs")
+}
+
+// ─── Team + Agentic (20260530_agentic_network.sql + 20260602 + 20260605) ───
+
+model TeamProfile {
+  id                  String   @id @default(uuid()) @db.Uuid
+  user_id             String   @db.Uuid
+  org_id              String   @db.Uuid
+  skills              String[] @default([])
+  languages           String[] @default(["English", "Arabic"])
+  performance_score   Decimal  @default(1.0) @db.Decimal(3, 2)
+  availability_status String   @default("active")
+  communication_style String   @default("professional")
+
+  // Gamification (20260602_house_backyard)
+  experience_points    Int @default(0)
+  level                Int @default(1)
+  current_streak       Int @default(0)
+  total_points_earned  Int @default(0)
+
+  // Collaboration (20260605_co_tasking)
+  help_given_count     Int     @default(0)
+  help_received_count  Int     @default(0)
+  collaboration_score  Decimal @default(1.0) @db.Decimal(3, 2)
+
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  @@map("team_profiles")
+}
+
+model AgenticTask {
+  id                String   @id @default(uuid()) @db.Uuid
+  org_id            String   @db.Uuid
+  creator_id        String?  @db.Uuid
+  assigned_to       String?  @db.Uuid
+  title             String
+  description       String?
+  priority          String   @default("medium")
+  status            String   @default("pending")
+  deadline          DateTime? @db.Timestamptz
+  reminder_count    Int      @default(0)
+  ai_reasoning      String?
+  metadata          Json     @default("{}")
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @db.Timestamptz
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@index([org_id, status, priority])
+  @@map("agentic_tasks")
+}
+
+model AIMemory {
+  id               String   @id @default(uuid()) @db.Uuid
+  org_id           String   @db.Uuid
+  memory_key       String
+  content          String
+  importance_score Int      @default(5)
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  @@map("ai_memory")
+}
+
+// ─── Products + parity (20260524_products + 20260610_limited_editions) ─────
+
+model Product {
+  id                     String   @id @default(uuid()) @db.Uuid
+  org_id                 String?  @db.Uuid
+  sku                    String   @unique
+  master_title           String
+  display_title          String?
+  category               String?
+  material               String?
+  is_limited_edition     Boolean  @default(false)
+  on_shopify             Boolean  @default(false)
+  on_woocommerce         Boolean  @default(false)
+  shopify_price_aed      Decimal? @db.Decimal(12, 2)
+  woocommerce_price_aed  Decimal? @db.Decimal(12, 2)
+  shopify_qty            Int?
+  woocommerce_qty        Int?
+  shopify_url            String?
+  woocommerce_url        String?
+  parity_status          String   @default("unclassified")
+  price_delta_pct        Decimal? @db.Decimal(6, 2)
+  seo_title              String?
+  seo_description        String?
+  seo_status             String   @default("pending")
+  google_shopping_status String   @default("pending")
+  ai_audit_notes         Json     @default("{}")
+  last_synced_at         DateTime @default(now()) @db.Timestamptz
+
+  organization Organization? @relation(fields: [org_id], references: [id])
+
+  @@index([parity_status])
+  @@index([seo_status])
+  @@map("products")
+}
+
+// ─── Orders + extractions (20260525 + 20260608 crm + 20260609 cashback) ────
+
+model OrderSubmission {
+  id                   String    @id @default(uuid()) @db.Uuid
+  org_id               String    @db.Uuid
+  phone                String
+  customer_name        String?
+  intent               String?
+  status               String    @default("draft")
+  language             String    @default("en")
+  source               String?
+  target_store         String?
+  country              String?
+  items                Json      @default("[]")
+  total_aed            Decimal?  @db.Decimal(12, 2)
+  cashback_earned_aed  Decimal   @default(0) @db.Decimal(12, 2)
+  cashback_applied_aed Decimal   @default(0) @db.Decimal(12, 2)
+  labels               String[]  @default([])
+  is_archived          Boolean   @default(false)
+  assigned_agent_id    String?   @db.Uuid
+  flags                String[]  @default([])
+  metadata             Json      @default("{}")
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @default(now()) @db.Timestamptz
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@index([org_id, status])
+  @@index([phone])
+  @@map("order_submissions")
+}
+
+model AIExtraction {
+  id              String   @id @default(uuid()) @db.Uuid
+  org_id          String   @db.Uuid
+  conversation_id String?
+  phone           String?
+  language        String?
+  payload         Json
+  vibes           Json     @default("{}")
+  risk_flags      String[] @default([])
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, created_at(sort: Desc)])
+  @@map("ai_extractions")
+}
+
+// ─── CRM (20260608) ────────────────────────────────────────────────────────
+
+model CRMIdentityLink {
+  id              String   @id @default(uuid()) @db.Uuid
+  org_id          String   @db.Uuid
+  customer_phone  String
+  session_id      String
+  first_seen      DateTime @default(now()) @db.Timestamptz
+  last_active     DateTime @default(now()) @db.Timestamptz
+
+  @@unique([customer_phone, session_id])
+  @@index([org_id, customer_phone])
+  @@map("crm_identity_links")
+}
+
+model CRMShortcut {
+  id          String   @id @default(uuid()) @db.Uuid
+  org_id      String   @db.Uuid
+  trigger_key String
+  content_en  String
+  content_ar  String?
+  category    String   @default("general")
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@unique([org_id, trigger_key])
+  @@map("crm_shortcuts")
+}
+
+// ─── Cashback wallet (20260609 + 20260611-13 additions) ────────────────────
+
+model CustomerWallet {
+  id                   String    @id @default(uuid()) @db.Uuid
+  org_id               String    @db.Uuid
+  customer_phone       String
+  balance_aed          Decimal   @default(0) @db.Decimal(12, 2)
+  public_slug          String    @unique
+  metadata             Json      @default("{}")
+  is_blocked           Boolean   @default(false)
+  block_reason         String?
+  blocked_at           DateTime? @db.Timestamptz
+  last_transaction_at  DateTime  @default(now()) @db.Timestamptz
+  created_at           DateTime  @default(now()) @db.Timestamptz
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@unique([org_id, customer_phone])
+  @@map("customer_wallets")
+}
+
+model WalletTransaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  org_id          String   @db.Uuid
+  customer_phone  String
+  amount          Decimal  @db.Decimal(12, 2)
+  type            String
+  reference_id    String?  @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  wallet CustomerWallet @relation(fields: [org_id, customer_phone], references: [org_id, customer_phone], onDelete: Cascade)
+
+  @@index([org_id, customer_phone, created_at(sort: Desc)])
+  @@map("customer_wallet_transactions")
+}
+
+// ─── Integrations (20260615_business_integrations) ─────────────────────────
+
+model OrgIntegration {
+  id              String   @id @default(uuid()) @db.Uuid
+  org_id          String   @db.Uuid
+  provider        String
+  api_key         String?
+  api_secret      String?
+  webhook_secret  String?
+  base_url        String?
+  status          String   @default("disconnected")
+  metadata        Json     @default("{}")
+  last_sync_at    DateTime? @db.Timestamptz
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  @@unique([org_id, provider])
+  @@map("org_integrations")
+}
+
+// ─── GA + intelligence (20260528 + 20260526) ───────────────────────────────
+
+model GAEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  org_id      String   @db.Uuid
+  session_id  String
+  user_id     String?  @db.Uuid
+  event_name  String
+  page_path   String?
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, session_id])
+  @@index([org_id, event_name, created_at(sort: Desc)])
+  @@map("ga_events")
+}
+
+model UserIntelligence {
+  id                   String   @id @default(uuid()) @db.Uuid
+  org_id               String   @db.Uuid
+  session_id           String?
+  decision_type        String
+  risk_score           Int      @default(0)
+  reasoning            String?
+  actionable_insight   String?
+  is_resolved          Boolean  @default(false)
+  created_at           DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, decision_type, is_resolved])
+  @@map("user_intelligence")
+}
+
+model BrandIntelligence {
+  id          String   @id @default(uuid()) @db.Uuid
+  org_id      String   @db.Uuid
+  user_id     String?  @db.Uuid
+  type        String
+  content     String
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, type])
+  @@map("brand_intelligence")
+}
+
+// ─── Drive Room (20260527) ─────────────────────────────────────────────────
+
+model DriveFile {
+  id             String   @id @default(uuid()) @db.Uuid
+  org_id         String   @db.Uuid
+  user_id        String?  @db.Uuid
+  drive_id       String
+  name           String
+  mime_type      String?
+  size_bytes     BigInt?
+  visibility     String   @default("all")
+  target_role_id String?  @db.Uuid
+  metadata       Json     @default("{}")
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, visibility])
+  @@map("drive_files")
+}
+
+model RoomWorkflow {
+  id                String   @id @default(uuid()) @db.Uuid
+  org_id            String   @db.Uuid
+  source_room_slug  String
+  target_room_slug  String
+  trigger_action    String
+  payload           Json     @default("{}")
+  status            String   @default("pending")
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  @@index([org_id, status, target_room_slug])
+  @@map("room_workflows")
+}

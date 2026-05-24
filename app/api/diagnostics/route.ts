@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PROMPT_REGISTRY } from '@/lib/prompts';
 import { isAIEnabled } from '@/lib/ai/client';
 import { isCloudConfigured } from '@/lib/whatsapp/cloud/client';
+import { isDatabaseConfigured } from '@/lib/db/prisma';
 
 /**
  * GET /api/diagnostics
@@ -15,6 +16,7 @@ export async function GET() {
     ok: true,
     ai_enabled: isAIEnabled(),
     supabase_configured: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    database_configured: isDatabaseConfigured(),
     whatsapp_cloud_configured: isCloudConfigured(),
     prompt_registry: PROMPT_REGISTRY,
     prompts_wired: PROMPT_REGISTRY.length,
