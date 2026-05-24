@@ -6,13 +6,14 @@ import { Badge, Dot } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StoreChip } from '@/components/ui/store-chip';
 import {
-  Sparkles, Zap, ShieldAlert, BookOpen, Users, AlertTriangle,
+  Sparkles, Zap, ShieldAlert, BookOpen, Users, AlertTriangle, User,
   ChevronRight, Loader2, FileImage, Wand2, ShieldCheck, ShoppingBag,
 } from 'lucide-react';
 import { mockExtract, mockVerifyPayment, mockMagazine } from '@/lib/whatsapp/mock';
+import { IdentityCard } from './identity-card';
 import type { Conversation, Extraction, PaymentVerification, Magazine, CustomerCard } from '@/lib/whatsapp/types';
 
-type Tab = 'extract' | 'vibes' | 'roles' | 'verify' | 'magazine';
+type Tab = 'customer' | 'extract' | 'vibes' | 'roles' | 'verify' | 'magazine';
 
 /**
  * The right-side AI panel. Six tabs, each backed by a different prompt from
@@ -26,8 +27,23 @@ type Tab = 'extract' | 'vibes' | 'roles' | 'verify' | 'magazine';
  * Reply Optimizer (MESSAGE_OPTIMIZATION_PROMPT) and Writing Assistant
  * (WRITING_ASSISTANT_PROMPT) live in the compose bar — they belong there.
  */
-export function AIPanel({ conv, card }: { conv: Conversation; card: CustomerCard }) {
-  const [tab, setTab] = useState<Tab>('extract');
+export function AIPanel({
+  conv,
+  card,
+  initialTab = 'extract',
+  tabKey,
+}: {
+  conv: Conversation;
+  card: CustomerCard;
+  initialTab?: Tab;
+  /** External counter to force the panel onto a specific tab (e.g. when user clicks the IdentityStrip). */
+  tabKey?: number;
+}) {
+  const [tab, setTab] = useState<Tab>(initialTab);
+  // Sync to external tab requests
+  if (tabKey !== undefined && (typeof window !== 'undefined')) {
+    // no-op render guard; external usage uses key prop too
+  }
   const [extract, setExtract] = useState<Extraction | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [verification, setVerification] = useState<PaymentVerification | null>(null);
@@ -49,6 +65,7 @@ export function AIPanel({ conv, card }: { conv: Conversation; card: CustomerCard
   }
 
   const tabs: { id: Tab; label: string; icon: any; badge?: number | string; tone?: 'good' | 'warn' | 'bad' | 'gold' }[] = [
+    { id: 'customer', label: 'Customer', icon: User, badge: card.matched ? '✓' : 'new', tone: card.matched ? 'good' : 'warn' },
     { id: 'extract', label: 'Extract', icon: Sparkles, badge: extract ? '✓' : undefined, tone: 'gold' },
     { id: 'vibes', label: 'Vibes', icon: Zap, badge: conv.vibes.fraud_risk === 'high' ? '!' : undefined, tone: conv.vibes.fraud_risk === 'high' ? 'bad' : 'good' },
     { id: 'roles', label: 'Roles', icon: Users },
@@ -82,6 +99,7 @@ export function AIPanel({ conv, card }: { conv: Conversation; card: CustomerCard
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {tab === 'customer' && <IdentityCard card={card} />}
         {tab === 'extract' && (
           <ExtractTab extract={extract} extracting={extracting} onRun={runExtract} />
         )}
