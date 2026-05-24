@@ -9,7 +9,7 @@ import {
 import type { Agent, AgentMessage, AgentTask, AgentMemory, AgentNote, AgentFile } from '@/lib/agents/types';
 import {
   Sparkles, ListTodo, Brain, MailOpen, FileText,
-  Send, Loader2, AlertTriangle, Pin, ArrowRight, Crown,
+  Send, Loader2, AlertTriangle, Pin, ArrowRight,
 } from 'lucide-react';
 import { DeskTopBar } from '@/components/whatsapp/desk-top-bar';
 import { formatAED } from '@/lib/utils';
@@ -21,13 +21,14 @@ import { formatAED } from '@/lib/utils';
  *   ├──────────────┬─────────────────────────────────┬──────────────────┤
  *   │ AGENTS       │ CHAT WITH SELECTED AGENT        │ CONTEXT PANEL    │
  *   │              │                                 │                  │
- *   │ ✨ Omnia     │ ┌─ {agent name + skills} ────┐ │ Tabs:            │
+ *   │ ✨ Omnia AI  │ ┌─ {agent name + skills} ────┐ │ Tabs:            │
  *   │ ─────        │ │ message bubbles            │ │   Tasks          │
- *   │ Mahmoud      │ │ + agent artifact cards     │ │   Memory         │
- *   │ Layla        │ │ (task routed, note sent…)  │ │   Notes (inbox)  │
- *   │ Omar         │ └────────────────────────────┘ │   Files          │
- *   │ Sara         │ ┌─ compose ──────────────────┐ │                  │
- *   │ Ali          │ │ textarea + Send            │ │ Content of tab   │
+ *   │ Ez           │ │ + agent artifact cards     │ │   Memory         │
+ *   │ Abdelrahman  │ │ (task routed, note sent…)  │ │   Notes (inbox)  │
+ *   │ Arslan       │ └────────────────────────────┘ │   Files          │
+ *   │ Abdallah     │ ┌─ compose ──────────────────┐ │                  │
+ *   │ Ahmed        │ │ textarea + Send            │ │ Content of tab   │
+ *   │ Mohamed      │ │                            │ │                  │
  *   └──────────────┴─────────────────────────────────┴──────────────────┘
  *
  * Omnia AI = the central orchestrator. One agent per team member account.
@@ -216,10 +217,7 @@ function AgentsRail({
                     {initials}
                   </div>
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-zinc-100 truncate flex items-center gap-1">
-                      {a.short_name}
-                      {a.for_user_role === 'owner' && <Crown className="w-3 h-3 text-amber-400" />}
-                    </div>
+                    <div className="text-zinc-100 truncate">{a.short_name}</div>
                     <div className="text-2xs text-zinc-500 truncate">{a.status}</div>
                   </div>
                   <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -254,10 +252,11 @@ function AgentHeader({ agent }: { agent: Agent }) {
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-zinc-100">{agent.name}</span>
           <span className={`w-1.5 h-1.5 rounded-full ${agent.online ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
-          {agent.kind === 'omnia' ? (
+          {agent.kind === 'omnia' && (
             <span className="text-2xs px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">orchestrator</span>
-          ) : (
-            <span className="text-2xs text-zinc-500 uppercase tracking-wider">{agent.for_user_role?.replace('_', ' ')}</span>
+          )}
+          {agent.kind === 'member' && agent.for_user_role && (
+            <span className="text-2xs text-zinc-500 uppercase tracking-wider">{agent.for_user_role.replace('_', ' ')}</span>
           )}
         </div>
         <div className="text-2xs text-zinc-500 mt-0.5 truncate">
@@ -383,7 +382,7 @@ function Compose({ draft, setDraft, onSend, sending, agent }: {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSend(); } }}
-          placeholder={agent.kind === 'omnia' ? 'Ask Omnia anything — route a task, save a memory, ask for status…' : `Message ${agent.short_name}…`}
+          placeholder={agent.kind === 'omnia' ? 'Ask Omnia AI anything — route a task, save a memory, ask for status…' : `Message ${agent.short_name}…`}
           rows={1}
           className="flex-1 resize-none min-h-[40px] max-h-[180px] px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-md text-sm leading-snug text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 outline-none"
         />

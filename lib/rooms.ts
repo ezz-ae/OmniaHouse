@@ -18,6 +18,7 @@ import {
   HardDrive,
   Mic,
   Users2,
+  Map,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -43,6 +44,8 @@ export const ROOMS: Room[] = [
   // Home
   { slug: 'house', name: 'House', group: 'home', icon: Home,
     description: 'Lobby — the entry point.' },
+  { slug: 'milestone', name: 'Milestone', group: 'home', icon: Map,
+    description: 'What the House is, what it does, the plan.' },
 
   // Desk
   { slug: 'whatsapp-desk', name: 'WhatsApp Desk', group: 'desk', icon: MessageSquare,

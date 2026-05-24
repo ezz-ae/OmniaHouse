@@ -10,7 +10,7 @@ export type WalletEntry = {
 
 export function getWallets(): WalletEntry[] {
   return [
-    { id: 'w1', customer: 'Layla S.', phone: '+971508811276', balance_aed: 800, earned_30d_aed: 420, spent_30d_aed: 0, last_activity: '2026-05-23' },
+    { id: 'w1', customer: 'Hessa K.', phone: '+971508811276', balance_aed: 800, earned_30d_aed: 420, spent_30d_aed: 0, last_activity: '2026-05-23' },
     { id: 'w2', customer: 'Noura A.', phone: '+971555478217', balance_aed: 420, earned_30d_aed: 180, spent_30d_aed: 200, last_activity: '2026-05-19' },
     { id: 'w3', customer: 'Khalid R.', phone: '+971505590033', balance_aed: 320, earned_30d_aed: 320, spent_30d_aed: 0, last_activity: '2026-05-21' },
     { id: 'w4', customer: 'Reem H.', phone: '+971566201155', balance_aed: 180, earned_30d_aed: 110, spent_30d_aed: 50, last_activity: '2026-05-02' },

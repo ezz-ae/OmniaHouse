@@ -12,7 +12,7 @@ export function getEvents(): Event[] {
   return [
     { id: 'e1', title: 'Eid Cashback Campaign · launch', date: '2026-05-30', type: 'campaign', status: 'upcoming', tone: 'gold' },
     { id: 'e2', title: 'Photoshoot · LE Celestial', date: '2026-05-28', type: 'launch', status: 'upcoming' },
-    { id: 'e3', title: 'Sync with Layla · WhatsApp Desk Q3 plan', date: '2026-05-24', type: 'meeting', with: ['Layla S.'], status: 'today', tone: 'info' },
+    { id: 'e3', title: 'Sync with Abdelrahman · WhatsApp Desk Q3 plan', date: '2026-05-24', type: 'meeting', with: ['Abdelrahman'], status: 'today', tone: 'info' },
     { id: 'e4', title: 'Tamara onboarding call', date: '2026-05-26', type: 'meeting', with: ['Tamara CS'], status: 'upcoming' },
     { id: 'e5', title: 'Mother\'s Day Campaign · wrap', date: '2026-05-20', type: 'campaign', status: 'past' },
   ];

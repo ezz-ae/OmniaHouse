@@ -16,10 +16,11 @@ import type { ProductShare, PaymentLink } from '@/lib/whatsapp/thread';
 
 const LABEL_OPTIONS = ['vip', 'bridal', 'sister_gift', 'repeat', 'le_browser', 'pressure', 'ksa', 'wedding', 'first_time'];
 const ASSIGNEE_OPTIONS = [
-  { id: 'layla', name: 'Layla S.' },
-  { id: 'omar', name: 'Omar K.' },
-  { id: 'sara', name: 'Sara K.' },
-  { id: 'mahmoud', name: 'Mahmoud E.' },
+  { id: 'abdelrahman', name: 'Abdelrahman' },
+  { id: 'arslan', name: 'Arslan' },
+  { id: 'abdallah', name: 'Abdallah' },
+  { id: 'mohamed', name: 'Mohamed' },
+  { id: 'ahmed', name: 'Ahmed' },
 ];
 
 export function ExtractCard({
@@ -29,7 +30,7 @@ export function ExtractCard({
   onDismiss?: () => void; onPush?: (target: 'shopify' | 'woocommerce', meta: { labels: string[]; assignee_id: string | null }) => void;
 }) {
   const [labels, setLabels] = useState<string[]>(card.labels);
-  const [assignee, setAssignee] = useState<string | null>('layla');
+  const [assignee, setAssignee] = useState<string | null>('abdelrahman');
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   function toggleLabel(l: string) {
     setLabels((arr) => arr.includes(l) ? arr.filter((x) => x !== l) : [...arr, l]);

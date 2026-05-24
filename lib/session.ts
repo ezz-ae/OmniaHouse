@@ -2,15 +2,14 @@
  * The "current user" for the prototype phase.
  *
  * Once Supabase is wired (Phase 2+), this gets replaced by a real session
- * reader. For now, the whole UI assumes Mahmoud-as-Owner. Roles are still
- * respected in the UI so we can stress-test the RBAC mock.
+ * reader. For now, the whole UI assumes the signed-in user has full access.
+ * Roles are still respected in the UI so we can stress-test the RBAC mock.
  */
 
 export type Session = {
   user: {
     id: string;
     name: string;
-    email: string;
     role: 'owner' | 'admin' | 'whatsapp_manager' | 'whatsapp_agent' | 'marketing' | 'strategy' | 'finance';
     avatarColor: string;
   };
@@ -23,15 +22,14 @@ export type Session = {
 
 export const MOCK_SESSION: Session = {
   user: {
-    id: 'u_mahmoud',
-    name: 'Mahmoud Ezz',
-    email: 'm@ezz.ae',
+    id: 'u_ez',
+    name: 'Ez',
     role: 'owner',
     avatarColor: '#D4A574',
   },
   org: {
     id: 'o_omnia',
-    name: 'OmniaStores LLC',
+    name: 'House of Omnia',
     handle: 'omnia',
   },
 };

@@ -50,13 +50,13 @@ export type RecentActivity = {
 
 export function getRecentActivity(): RecentActivity[] {
   return [
-    { id: 'a1', at: '14:32', actor: 'Layla', action: 'extracted chat → draft', target: '#WA-4421', tone: 'gold' },
+    { id: 'a1', at: '14:32', actor: 'Abdelrahman', action: 'extracted chat → draft', target: '#WA-4421', tone: 'gold' },
     { id: 'a2', at: '14:21', actor: 'System', action: 'parity drift detected', target: 'Crescent Ring 925', tone: 'bad' },
-    { id: 'a3', at: '14:18', actor: 'Omar', action: 'completed draft', target: '#1284 · AED 12,400', tone: 'good' },
-    { id: 'a4', at: '14:02', actor: 'Mahmoud', action: 'approved access for', target: 'Sara Khalil (Agent)', tone: 'info' },
+    { id: 'a3', at: '14:18', actor: 'Arslan', action: 'completed draft', target: '#1284 · AED 12,400', tone: 'good' },
+    { id: 'a4', at: '14:02', actor: 'Ez', action: 'approved access for', target: 'Mohamed (Agent)', tone: 'info' },
     { id: 'a5', at: '13:51', actor: 'Hex', action: 'inventory parity refreshed', target: '847 SKUs scanned' },
-    { id: 'a6', at: '13:44', actor: 'Layla', action: 'flagged customer', target: '+971 50••• 884 (repeat refunds)', tone: 'warn' },
-    { id: 'a7', at: '13:30', actor: 'Omar', action: 'replied on WhatsApp', target: '+971 55••• 217' },
+    { id: 'a6', at: '13:44', actor: 'Abdelrahman', action: 'flagged customer', target: '+971 50••• 884 (repeat refunds)', tone: 'warn' },
+    { id: 'a7', at: '13:30', actor: 'Arslan', action: 'replied on WhatsApp', target: '+971 55••• 217' },
     { id: 'a8', at: '13:12', actor: 'System', action: 'low stock alert', target: 'Moonstone Pendant (3 left .ae)', tone: 'warn' },
   ];
 }

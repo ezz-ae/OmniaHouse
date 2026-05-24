@@ -7,6 +7,8 @@ import { DeskTopBar } from '@/components/whatsapp/desk-top-bar';
 import { ROOMS, ROOM_GROUPS, type Room } from '@/lib/rooms';
 import { Sparkles, Send, Loader2, ArrowRight } from 'lucide-react';
 import { mockAgentReply, getAgent } from '@/lib/agents/mock';
+
+const OMNIA_AGENT_ID = 'agent_omnia';
 import type { AgentMessage } from '@/lib/agents/types';
 
 /**
@@ -22,7 +24,7 @@ import type { AgentMessage } from '@/lib/agents/types';
  */
 export default function LobbyPage() {
   const router = useRouter();
-  const omnia = useMemo(() => getAgent('agent_omnia')!, []);
+  const omnia = useMemo(() => getAgent(OMNIA_AGENT_ID)!, []);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -47,7 +49,7 @@ export default function LobbyPage() {
   async function send() {
     if (!draft.trim() || sending) return;
     const at = new Date().toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const userMsg: AgentMessage = { id: `u_${Date.now()}`, agent_id: 'agent_omnia', from: 'user', body: draft, at };
+    const userMsg: AgentMessage = { id: `u_${Date.now()}`, agent_id: OMNIA_AGENT_ID, from: 'user', body: draft, at };
     setMessages((arr) => [...arr, userMsg]);
     const text = draft;
     setDraft('');
@@ -81,11 +83,15 @@ export default function LobbyPage() {
               <h1 className="text-3xl font-medium text-zinc-100 mb-4 leading-tight tracking-tight">
                 House of Omnia
               </h1>
-              <div className="flex items-start gap-3 text-sm text-zinc-400 leading-relaxed">
-                <Sparkles className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                <span>
-                  Omnia is watching. Ask anything, or pick a room from the menu below.
+              <div className="flex items-center gap-3 text-sm text-zinc-400 leading-relaxed">
+                <span className="inline-flex items-center gap-2 px-2 h-6 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06]">
+                  <span className="relative flex w-1.5 h-1.5">
+                    <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60" />
+                    <span className="relative w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  </span>
+                  <span className="text-2xs uppercase tracking-wider text-emerald-300">Omnia AI is Live</span>
                 </span>
+                <span className="text-zinc-500">Ask anything, or pick a room below.</span>
               </div>
             </div>
 
@@ -114,7 +120,7 @@ export default function LobbyPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKey}
-              placeholder="Ask Omnia"
+              placeholder="Ask Omnia AI"
               rows={1}
               className="flex-1 resize-none min-h-[44px] max-h-[120px] px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-md text-sm leading-snug text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 outline-none"
             />
@@ -148,7 +154,7 @@ function Message({ m }: { m: AgentMessage }) {
       }`}>
         {!isUser && (
           <div className="flex items-center gap-1.5 mb-1 text-2xs uppercase tracking-wider text-emerald-400">
-            <Sparkles className="w-3 h-3" /> Omnia
+            <Sparkles className="w-3 h-3" /> Omnia AI
           </div>
         )}
         {m.body}

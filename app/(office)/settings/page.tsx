@@ -11,9 +11,7 @@ export default function SettingsPage() {
           <p className="text-sm text-zinc-500 mb-8">Your profile and platform preferences.</p>
 
           <Section title="Identity">
-            <Row label="Name" value="Mahmoud Ezz" />
-            <Row label="Email" value="m@ezz.ae" />
-            <Row label="Role" value="Owner" />
+            <Row label="Signed in as" value="Ez" />
             <Row label="Organization" value="House of Omnia" />
           </Section>
 

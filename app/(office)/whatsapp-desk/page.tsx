@@ -573,8 +573,8 @@ function CustomerRail({ card }: { card: ReturnType<typeof getCustomerCard> }) {
 
 function DraftsSection({ onOpenChat }: { onOpenChat: (convId: string) => void }) {
   const drafts = [
-    { id: 'd1', conv_id: 'w1', customer: 'Aisha M.', phone: '+971501234884', items: 2, total: 2600, created: 'today 14:32', target: 'shopify' as const, labels: ['repeat', 'sister_gift'], assignee: 'Layla S.' },
-    { id: 'd2', conv_id: 'w4', customer: 'Mariam K.', phone: '+966507733091', items: 3, total: 5400, created: 'today 13:51', target: 'shopify' as const, labels: ['ksa', 'bridal'], assignee: 'Layla S.' },
+    { id: 'd1', conv_id: 'w1', customer: 'Aisha M.', phone: '+971501234884', items: 2, total: 2600, created: 'today 14:32', target: 'shopify' as const, labels: ['repeat', 'sister_gift'], assignee: 'Abdelrahman' },
+    { id: 'd2', conv_id: 'w4', customer: 'Mariam K.', phone: '+966507733091', items: 3, total: 5400, created: 'today 13:51', target: 'shopify' as const, labels: ['ksa', 'bridal'], assignee: 'Abdelrahman' },
   ];
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-900">
@@ -627,7 +627,7 @@ function DraftsSection({ onOpenChat }: { onOpenChat: (convId: string) => void })
 function CustomersSection({ onOpenChat }: { onOpenChat: (convId: string) => void }) {
   const [seg, setSeg] = useState<'all' | 'vip' | 'repeat' | 'new' | 'at_risk'>('all');
   const customers = [
-    { id: 'cu_noura',  conv_id: 'w3', name: 'Noura A.', phone: '+971555478217', orders: 7, ltv: 38200, last: '2026-05-19', stores: 'shopify+wa', seg: 'vip' as const },
+    { id: 'cu_noura',  conv_id: 'w3', name: 'Noura A.', phone: '+971555478217', orders: 7, ltv: 38_200, last: '2026-05-19', stores: 'shopify+wa', seg: 'vip' as const },
     { id: 'cu_aisha',  conv_id: 'w1', name: 'Aisha M.', phone: '+971501234884', orders: 3, ltv: 14400, last: '2026-04-12', stores: 'woo+wa',     seg: 'repeat' as const },
     { id: 'cu_mariam', conv_id: 'w4', name: 'Mariam K.', phone: '+966507733091', orders: 1, ltv: 3400, last: '2026-02-08', stores: 'wa',         seg: 'at_risk' as const },
     { id: 'cu_reem',   conv_id: 'w1', name: 'Reem H.',  phone: '+971566201155', orders: 4, ltv: 22100, last: '2026-05-02', stores: 'shopify+wa', seg: 'repeat' as const },
@@ -715,12 +715,12 @@ function TemplatesSection() {
 
 function ActivitySection({ onOpenChat }: { onOpenChat: (convId: string) => void }) {
   const events = [
-    { at: '14:35', who: 'Layla', what: 'extracted chat', detail: 'Aisha M. — Crescent Ring × 2, COD AED 2,600', conv_id: 'w1' },
-    { at: '14:31', who: 'Omar', what: 'verified payment', detail: 'Noura A. — Emirates NBD, 91%', conv_id: 'w3' },
-    { at: '14:22', who: 'Layla', what: 'used template', detail: '/welcome', conv_id: 'w1' },
-    { at: '14:18', who: 'Layla', what: 'pushed draft', detail: 'Aisha M. → omniastores.ae', conv_id: 'w1' },
-    { at: '14:11', who: 'Omar', what: 'optimized reply', detail: 'Noura A. — 78% conversion', conv_id: 'w3' },
-    { at: '13:52', who: 'Layla', what: 'flagged fraud', detail: '+971501009922 — Payment.pdf rejected', conv_id: 'w6' },
+    { at: '14:35', who: 'Abdelrahman', what: 'extracted chat', detail: 'Aisha M. — Crescent Ring × 2, COD AED 2,600', conv_id: 'w1' },
+    { at: '14:31', who: 'Arslan', what: 'verified payment', detail: 'Noura A. — Emirates NBD, 91%', conv_id: 'w3' },
+    { at: '14:22', who: 'Abdelrahman', what: 'used template', detail: '/welcome', conv_id: 'w1' },
+    { at: '14:18', who: 'Abdelrahman', what: 'pushed draft', detail: 'Aisha M. → omniastores.ae', conv_id: 'w1' },
+    { at: '14:11', who: 'Arslan', what: 'optimized reply', detail: 'Noura A. — 78% conversion', conv_id: 'w3' },
+    { at: '13:52', who: 'Abdelrahman', what: 'flagged fraud', detail: '+971501009922 — Payment.pdf rejected', conv_id: 'w6' },
   ];
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-900">
