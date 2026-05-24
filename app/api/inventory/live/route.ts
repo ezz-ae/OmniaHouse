@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { scrapeShopify, scrapeWoo, unify, type UnifiedLiveProduct } from '@/lib/inventory/live-scrape';
 
 /**
@@ -20,10 +22,34 @@ type Cache = {
 };
 
 const TTL_MS = 30 * 60 * 1000;
+const CACHE_FILE = path.join(process.cwd(), '.data', 'inventory-live.json');
 
-// Module-level cache. Lives for the lifetime of the Node process.
+// Module-level cache + on-disk snapshot. The disk copy survives dev server
+// restarts so we don't re-scrape both stores on every reload.
 let cache: Cache | null = null;
 let inflight: Promise<Cache> | null = null;
+
+async function loadFromDisk(): Promise<Cache | null> {
+  try {
+    const text = await fs.readFile(CACHE_FILE, 'utf-8');
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.at === 'number' && Array.isArray(parsed.products)) {
+      return parsed as Cache;
+    }
+  } catch {
+    // file missing or unreadable — fine, treat as no cache
+  }
+  return null;
+}
+
+async function saveToDisk(c: Cache): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(CACHE_FILE), { recursive: true });
+    await fs.writeFile(CACHE_FILE, JSON.stringify(c), 'utf-8');
+  } catch (err) {
+    console.error('inventory cache save failed:', err);
+  }
+}
 
 async function refresh(): Promise<Cache> {
   const errors: string[] = [];
@@ -40,11 +66,28 @@ async function refresh(): Promise<Cache> {
     errors,
   };
   inflight = null;
+  // Fire-and-forget disk persist
+  saveToDisk(cache);
   return cache;
 }
 
 async function getCache(): Promise<Cache> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache;
+  // Try disk first (fresh enough?)
+  if (!cache) {
+    const disk = await loadFromDisk();
+    if (disk && Date.now() - disk.at < TTL_MS) {
+      cache = disk;
+      return cache;
+    }
+    // Stale disk cache is still useful — return immediately and refresh
+    // in the background so the next request gets fresh data.
+    if (disk) {
+      cache = disk;
+      if (!inflight) inflight = refresh().catch((e) => { inflight = null; throw e; });
+      return cache;
+    }
+  }
   if (inflight) return inflight;
   inflight = refresh();
   return inflight;

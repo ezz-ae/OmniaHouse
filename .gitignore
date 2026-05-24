@@ -53,3 +53,6 @@ supabase/.temp
 # logs
 logs
 *.log
+
+# inventory cache + agent state (rebuildable, large)
+.data/
