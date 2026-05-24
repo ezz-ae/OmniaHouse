@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PROMPT_REGISTRY } from '@/lib/prompts';
 import { isAIEnabled } from '@/lib/ai/client';
+import { isCloudConfigured } from '@/lib/whatsapp/cloud/client';
 
 /**
  * GET /api/diagnostics
@@ -14,10 +15,15 @@ export async function GET() {
     ok: true,
     ai_enabled: isAIEnabled(),
     supabase_configured: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    whatsapp_cloud_configured: isCloudConfigured(),
     prompt_registry: PROMPT_REGISTRY,
     prompts_wired: PROMPT_REGISTRY.length,
     routes: {
       whatsapp: [
+        'GET  /api/whatsapp/webhook   — Meta verification handshake',
+        'POST /api/whatsapp/webhook   — incoming messages + statuses',
+        'POST /api/whatsapp/send      — outbound text / template',
+        'GET  /api/whatsapp/media?id= — proxy a Cloud API media file',
         'POST /api/whatsapp/extract',
         'POST /api/whatsapp/optimize-reply',
         'POST /api/whatsapp/verify-payment',

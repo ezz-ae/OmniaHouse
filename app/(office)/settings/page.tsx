@@ -21,6 +21,15 @@ export default function SettingsPage() {
             <Row label="WhatsApp Business" value={<CopyablePhone phone="+971565478227" />} />
           </Section>
 
+          <Section title="WhatsApp Cloud API">
+            <Row label="Phone Number ID" value={<EnvStatus name="WHATSAPP_PHONE_NUMBER_ID" />} />
+            <Row label="Business Account ID" value={<EnvStatus name="WHATSAPP_BUSINESS_ACCOUNT_ID" />} />
+            <Row label="Access token" value={<EnvStatus name="WHATSAPP_ACCESS_TOKEN" />} />
+            <Row label="App secret" value={<EnvStatus name="WHATSAPP_APP_SECRET" />} />
+            <Row label="Verify token" value={<EnvStatus name="WHATSAPP_VERIFY_TOKEN" />} />
+            <Row label="Webhook URL" value={<span className="font-mono text-xs text-zinc-400">/api/whatsapp/webhook</span>} />
+          </Section>
+
           <Section title="AI">
             <Row label="Google Gemini key" value={<EnvStatus name="GOOGLE_API_KEY" />} />
             <Row label="Default model" value="gemini-2.0-flash" />
