@@ -86,26 +86,83 @@ export function MessengerCompose({
     return m ? m[2].trim() : null;
   }, [paletteQuery]);
 
+  // Live inventory results (fetched from /api/inventory/live).
+  // Falls back to mock catalogue if the live scrape fails or is offline.
+  const [liveProducts, setLiveProducts] = useState<ProductShare[] | null>(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveSource, setLiveSource] = useState<'live' | 'mock' | null>(null);
+  const [liveStats, setLiveStats] = useState<{ total: number; matched: number } | null>(null);
+
+  useEffect(() => {
+    if (productMode === null) {
+      setLiveProducts(null);
+      setLiveSource(null);
+      setLiveStats(null);
+      return;
+    }
+    let cancelled = false;
+    setLiveLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/inventory/live?q=${encodeURIComponent(productMode)}&limit=12`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.ok && Array.isArray(json.products) && json.products.length > 0) {
+          const mapped: ProductShare[] = json.products.map((p: any) => ({
+            sku: p.sku || p.match_key.replace(/^(sku|title):/, ''),
+            title: p.display_title,
+            category: p.category,
+            material: p.material,
+            image_url: p.image_url || null,
+            shopify_price_aed: p.shopify_price_aed,
+            woocommerce_price_aed: p.woocommerce_price_aed,
+            shopify_url: p.shopify_url,
+            woocommerce_url: p.woocommerce_url,
+            in_stock_anywhere: p.in_stock_anywhere,
+            is_limited_edition: p.is_limited_edition,
+            source: 'live',
+          }));
+          setLiveProducts(mapped);
+          setLiveSource('live');
+          setLiveStats({ total: json.stats?.total || 0, matched: json.stats?.matched || mapped.length });
+        } else {
+          // Fall back to mock when live returns nothing
+          const mock = searchProducts(productMode, 12).map((p) => ({ ...p, source: 'mock' as const }));
+          setLiveProducts(mock);
+          setLiveSource('mock');
+          setLiveStats(null);
+        }
+      } catch {
+        if (cancelled) return;
+        const mock = searchProducts(productMode, 12).map((p) => ({ ...p, source: 'mock' as const }));
+        setLiveProducts(mock);
+        setLiveSource('mock');
+        setLiveStats(null);
+      } finally {
+        if (!cancelled) setLiveLoading(false);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [productMode]);
+
   const rows: Row[] = useMemo(() => {
-    // When /product or /find: show only product results
     if (productMode !== null) {
-      const products = searchProducts(productMode, 12);
+      const products = liveProducts ?? searchProducts(productMode, 12);
       return products.map((p) => ({ kind: 'product' as const, id: p.sku, product: p }));
     }
     const q = paletteQuery.toLowerCase();
     const a: Row[] = SLASH_ACTIONS
       .filter((x) => !q || x.id.includes(q))
       .map((x) => ({ kind: 'action', id: x.id, label: x.label, hint: x.hint }));
-    // Add a "/product" entry to advertise the feature
     const productEntry: Row[] = (!q || 'product'.includes(q) || 'find'.includes(q))
-      ? [{ kind: 'action' as any, id: 'product' as any, label: '/product', hint: 'Search inventory and share a product in the chat' } as Row]
+      ? [{ kind: 'action' as any, id: 'product' as any, label: '/product', hint: 'Search the live catalogue (Shopify + WooCommerce)' } as Row]
       : [];
     const s: Row[] = SHORTCUTS
       .filter((sc) => !q || sc.trigger_key.includes(q) || sc.content_en.toLowerCase().includes(q))
       .slice(0, q ? 16 : 8)
       .map((sc) => ({ kind: 'shortcut', id: sc.id, label: sc.trigger_key, hint: sc.content_en }));
     return [...a, ...productEntry, ...s];
-  }, [paletteQuery, productMode, SLASH_ACTIONS]);
+  }, [paletteQuery, productMode, liveProducts, SLASH_ACTIONS]);
 
   function clearSlash() { setText((prev) => prev.replace(/(\/[a-z0-9_-]*(?:\s.*)?)$/, '')); }
   function closePalette() { setPaletteOpen(false); setPaletteQuery(''); setPaletteIdx(0); }
@@ -168,7 +225,17 @@ export function MessengerCompose({
       {paletteOpen && rows.length > 0 && (
         <div className="absolute bottom-full left-0 right-0 max-h-[300px] overflow-y-auto bg-zinc-900 border-t border-zinc-800 shadow-xl">
           <div className="sticky top-0 px-4 py-1.5 text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between">
-            <span>{paletteQuery ? `/${paletteQuery}` : 'AI tools & shortcuts'}</span>
+            <span className="flex items-center gap-2">
+              {paletteQuery ? `/${paletteQuery}` : 'AI tools & shortcuts'}
+              {productMode !== null && (
+                <>
+                  {liveLoading ? <Loader2 className="w-3 h-3 animate-spin text-emerald-400" /> :
+                    liveSource === 'live' ? <span className="px-1 h-3.5 rounded bg-emerald-500/90 text-zinc-900 font-mono text-2xs flex items-center">LIVE</span> :
+                    liveSource === 'mock' ? <span className="px-1 h-3.5 rounded bg-amber-500/80 text-zinc-900 font-mono text-2xs flex items-center">MOCK</span> : null}
+                  {liveStats && <span className="text-zinc-500 normal-case tracking-normal">· {liveStats.matched} of {liveStats.total}</span>}
+                </>
+              )}
+            </span>
             <button onClick={closePalette} className="text-zinc-500 hover:text-zinc-200"><X className="w-3.5 h-3.5" /></button>
           </div>
           <ul>

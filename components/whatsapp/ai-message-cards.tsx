@@ -376,11 +376,18 @@ export function ProductShareCard({
   return (
     <Shell tone="blue" icon={Package} title="Product" at={at} onDismiss={onDismiss}>
       <div className="flex gap-3 mb-3">
-        <div className={`w-20 h-20 rounded-md shrink-0 relative overflow-hidden bg-gradient-to-br ${productGradient(data.image_hint)}`}>
+        <div className={`w-20 h-20 rounded-md shrink-0 relative overflow-hidden ${data.image_url ? 'bg-zinc-800' : `bg-gradient-to-br ${productGradient(data.image_hint)}`}`}>
+          {data.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={data.image_url} alt={data.title} className="w-full h-full object-cover" />
+          )}
           {data.is_limited_edition && (
             <span className="absolute top-1 left-1 px-1.5 h-4 rounded bg-zinc-900/80 text-amber-300 text-2xs flex items-center gap-0.5">
               <Crown className="w-2.5 h-2.5" /> LE
             </span>
+          )}
+          {data.source === 'live' && (
+            <span className="absolute bottom-1 right-1 px-1 h-3.5 rounded bg-emerald-500/90 text-zinc-900 text-2xs font-mono">LIVE</span>
           )}
         </div>
         <div className="flex-1 min-w-0">

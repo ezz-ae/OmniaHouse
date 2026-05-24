@@ -14,12 +14,16 @@ export type ProductShare = {
   category: string;
   material: string;
   image_hint?: string;
+  /** Real image URL from the store (cdn.shopify.com or omniastores.com). Takes precedence over image_hint. */
+  image_url?: string | null;
   shopify_price_aed: number | null;
   woocommerce_price_aed: number | null;
   shopify_url: string | null;
   woocommerce_url: string | null;
   in_stock_anywhere: boolean;
   is_limited_edition: boolean;
+  /** Whether this row came from live store scrape or local mock. */
+  source?: 'live' | 'mock';
 };
 
 export type PaymentLink = {
