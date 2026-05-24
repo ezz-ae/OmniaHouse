@@ -82,20 +82,28 @@ export default function DriveRoomPage() {
     <div className="h-screen w-full overflow-hidden bg-zinc-900 text-zinc-100 flex flex-col font-sans">
       <DeskTopBar />
 
+      <MobileVisibilityBar
+        counts={counts}
+        active={visibility}
+        onSelect={setVisibility}
+      />
+
       <div className="flex-1 min-h-0 flex">
         {/* Left rail — visibility filter */}
-        <VisibilityRail
-          counts={counts}
-          active={visibility}
-          onSelect={setVisibility}
-          pendingCount={pendingWorkflows.length}
-        />
+        <div className="hidden md:flex">
+          <VisibilityRail
+            counts={counts}
+            active={visibility}
+            onSelect={setVisibility}
+            pendingCount={pendingWorkflows.length}
+          />
+        </div>
 
         {/* Center — file grid */}
-        <main className="flex-1 min-w-0 flex flex-col border-r border-zinc-800">
+        <main className="flex-1 min-w-0 flex flex-col md:border-r md:border-zinc-800">
           <SafeHeader count={files.length} />
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="p-3 sm:p-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {files.map((f) => (
                 <FileTile
                   key={f.id}
@@ -109,12 +117,52 @@ export default function DriveRoomPage() {
           </div>
         </main>
 
-        {/* Right — Corridor feed */}
-        <CorridorFeed workflows={allWorkflows} />
+        {/* Right — Corridor feed (desktop only) */}
+        <div className="hidden lg:flex">
+          <CorridorFeed workflows={allWorkflows} />
+        </div>
       </div>
 
       {/* Drawer */}
       {active && <FileDrawer file={active} onClose={() => setActiveId(null)} />}
+    </div>
+  );
+}
+
+// ─── Mobile visibility bar ────────────────────────────────────────────────
+
+function MobileVisibilityBar({
+  counts, active, onSelect,
+}: {
+  counts: { every: number; all: number; role: number; private: number };
+  active: 'every' | 'all' | 'role' | 'private';
+  onSelect: (v: 'every' | 'all' | 'role' | 'private') => void;
+}) {
+  const items: { id: typeof active; label: string }[] = [
+    { id: 'every',   label: 'Everything' },
+    { id: 'all',     label: 'All hands' },
+    { id: 'role',    label: 'Role only' },
+    { id: 'private', label: 'Private' },
+  ];
+  return (
+    <div className="md:hidden h-11 shrink-0 border-b border-zinc-800 bg-zinc-900 flex items-center overflow-x-auto">
+      {items.map((it) => {
+        const isActive = active === it.id;
+        return (
+          <button
+            key={it.id}
+            onClick={() => onSelect(it.id)}
+            className={`shrink-0 h-full px-3 text-xs whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+              isActive ? 'text-zinc-100 border-b-2 border-emerald-500' : 'text-zinc-500'
+            }`}
+          >
+            {it.label}
+            {counts[it.id] > 0 && (
+              <span className="text-2xs font-mono text-zinc-500">{counts[it.id]}</span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

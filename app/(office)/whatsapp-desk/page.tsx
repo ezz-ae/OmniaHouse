@@ -15,7 +15,7 @@ import {
 import { messagesToTurns, type Turn, type ProductShare } from '@/lib/whatsapp/thread';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
 import { formatAED } from '@/lib/utils';
-import { Info, Wallet } from 'lucide-react';
+import { Info, Wallet, ArrowLeft, Menu, X } from 'lucide-react';
 import type { Message, Conversation } from '@/lib/whatsapp/types';
 
 /**
@@ -32,6 +32,8 @@ export default function WhatsAppDeskPage() {
   const [extraTurns, setExtraTurns] = useState<Record<string, Turn[]>>({});
   const [busy, setBusy] = useState<SlashAction | null>(null);
   const [showCustomer, setShowCustomer] = useState(false);
+  const [showNav, setShowNav] = useState(false);
+  const [mobileView, setMobileView] = useState<'list' | 'thread'>('list');
 
   const filtered = useMemo(() => {
     switch (section) {
@@ -234,8 +236,24 @@ export default function WhatsAppDeskPage() {
     <div className="h-screen w-full overflow-hidden bg-zinc-900 text-zinc-100 flex flex-col font-sans">
       <DeskTopBar />
 
-      <div className="flex-1 min-h-0 flex">
-        <DeskNav section={section} conversations={baseConversations} onChange={setSection} />
+      <MobileSectionBar
+        section={section}
+        conversations={baseConversations}
+        onChange={(s) => { setSection(s); setShowNav(false); setMobileView('list'); }}
+        onOpenNav={() => setShowNav(true)}
+      />
+
+      <div className="flex-1 min-h-0 flex relative">
+        <div className={`${showNav ? 'absolute inset-0 z-30 flex' : 'hidden'} md:static md:flex md:z-auto`}>
+          <DeskNav
+            section={section}
+            conversations={baseConversations}
+            onChange={(s) => { setSection(s); setShowNav(false); setMobileView('list'); }}
+          />
+          {showNav && (
+            <div className="flex-1 bg-black/60 md:hidden" onClick={() => setShowNav(false)} />
+          )}
+        </div>
 
         <main className="flex-1 min-w-0 flex">
           {isChatSection(section) && (
@@ -248,7 +266,9 @@ export default function WhatsAppDeskPage() {
               turns={turns}
               busy={busy}
               showCustomer={showCustomer}
-              onSelect={setActiveId}
+              mobileView={mobileView}
+              onSelect={(id) => { setActiveId(id); setMobileView('thread'); }}
+              onMobileBack={() => setMobileView('list')}
               onSend={sendMessage}
               onSlashAction={runAction}
               onShortcutPick={runShortcut}
@@ -296,7 +316,9 @@ function ChatSection(props: {
   turns: Turn[];
   busy: SlashAction | null;
   showCustomer: boolean;
+  mobileView: 'list' | 'thread';
   onSelect: (id: string) => void;
+  onMobileBack: () => void;
   onSend: (text: string) => void;
   onSlashAction: (a: SlashAction) => void;
   onShortcutPick: (t: string) => void;
@@ -309,15 +331,18 @@ function ChatSection(props: {
 }) {
   if (props.conversations.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-zinc-500">
+      <div className="flex-1 flex items-center justify-center text-sm text-zinc-500 px-8 text-center">
         No conversations in this section yet.
       </div>
     );
   }
 
+  const listVisible = props.mobileView === 'list';
+  const threadVisible = props.mobileView === 'thread';
+
   return (
     <>
-      <div className="w-80 shrink-0 border-r border-zinc-800">
+      <div className={`${listVisible ? 'flex' : 'hidden'} md:flex w-full md:w-80 shrink-0 md:border-r md:border-zinc-800 flex-col`}>
         <ChatList
           conversations={props.conversations}
           activeId={props.activeId}
@@ -325,12 +350,13 @@ function ChatSection(props: {
         />
       </div>
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className={`${threadVisible ? 'flex' : 'hidden'} md:flex flex-1 min-w-0 flex-col`}>
         <ConvHeader
           active={props.active}
           card={props.card}
           showCustomer={props.showCustomer}
           onToggleCustomer={props.onToggleCustomer}
+          onMobileBack={props.onMobileBack}
         />
         <ConversationThread
           turns={props.turns}
@@ -351,21 +377,25 @@ function ChatSection(props: {
       </div>
 
       {props.showCustomer && (
-        <aside className="w-72 shrink-0 border-l border-zinc-800 bg-zinc-900 overflow-y-auto">
-          <CustomerRail card={props.card} />
-        </aside>
+        <>
+          <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={props.onToggleCustomer} />
+          <aside className="fixed md:static inset-y-0 right-0 z-50 w-72 max-w-[85vw] shrink-0 border-l border-zinc-800 bg-zinc-900 overflow-y-auto">
+            <CustomerRail card={props.card} onClose={props.onToggleCustomer} />
+          </aside>
+        </>
       )}
     </>
   );
 }
 
 function ConvHeader({
-  active, card, showCustomer, onToggleCustomer,
+  active, card, showCustomer, onToggleCustomer, onMobileBack,
 }: {
   active: Conversation;
   card: ReturnType<typeof getCustomerCard>;
   showCustomer: boolean;
   onToggleCustomer: () => void;
+  onMobileBack: () => void;
 }) {
   const name = card.display_name || 'Unknown sender';
   const initials = card.matched ? name.split(' ').map((p) => p[0]).slice(0, 2).join('') : '?';
@@ -373,7 +403,14 @@ function ConvHeader({
   const mood = v.happiness_level >= 8 ? '🌟' : v.happiness_level >= 6 ? '🙂' : v.happiness_level >= 4 ? '😐' : '😟';
 
   return (
-    <div className="h-14 shrink-0 border-b border-zinc-800 px-4 flex items-center gap-3 bg-zinc-900">
+    <div className="h-14 shrink-0 border-b border-zinc-800 px-3 sm:px-4 flex items-center gap-2 sm:gap-3 bg-zinc-900">
+      <button
+        onClick={onMobileBack}
+        aria-label="Back to list"
+        className="md:hidden w-8 h-8 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center shrink-0"
+      >
+        <ArrowLeft className="w-4 h-4" />
+      </button>
       <div className="w-9 h-9 rounded-full bg-zinc-700 text-zinc-100 text-sm font-medium flex items-center justify-center shrink-0">
         {initials}
       </div>
@@ -403,12 +440,13 @@ function ConvHeader({
       <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={onToggleCustomer}
-          className={`px-2.5 h-8 rounded text-sm flex items-center gap-1.5 transition-colors ${
+          aria-label="Toggle customer panel"
+          className={`px-2 sm:px-2.5 h-8 rounded text-sm flex items-center gap-1.5 transition-colors ${
             showCustomer ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
           }`}
         >
           <Info className="w-3.5 h-3.5" />
-          Customer
+          <span className="hidden sm:inline">Customer</span>
         </button>
       </div>
     </div>
@@ -426,13 +464,24 @@ function VibePill({ tone, children, title }: { tone: 'rose' | 'amber' | 'emerald
   );
 }
 
-function CustomerRail({ card }: { card: ReturnType<typeof getCustomerCard> }) {
+function CustomerRail({ card, onClose }: { card: ReturnType<typeof getCustomerCard>; onClose?: () => void }) {
   const orders = getRecentOrders(card.customer_id);
   const ledger = getWalletLedger(card.customer_id);
   const [blocked, setBlocked] = useState(false);
 
   return (
     <div className="p-4 space-y-5">
+      {onClose && (
+        <div className="md:hidden flex justify-end -mt-1 -mr-1">
+          <button
+            onClick={onClose}
+            aria-label="Close customer panel"
+            className="w-7 h-7 rounded text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Identity */}
       <div>
         <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Identity</div>
@@ -778,6 +827,66 @@ function SectionHead({ title, count, hint }: { title: string; count?: number; hi
         {count !== undefined && <span className="text-sm text-zinc-500 numeric">{count}</span>}
       </div>
       {hint && <p className="text-xs text-zinc-500">{hint}</p>}
+    </div>
+  );
+}
+
+const MOBILE_SECTIONS: { id: DeskSection; label: string }[] = [
+  { id: 'inbox',     label: 'All chats' },
+  { id: 'unclaimed', label: 'Unclaimed' },
+  { id: 'manager',   label: 'Manager' },
+  { id: 'ready',     label: 'Ready' },
+  { id: 'drafts',    label: 'Drafts' },
+  { id: 'customers', label: 'Customers' },
+  { id: 'templates', label: 'Templates' },
+  { id: 'activity',  label: 'Activity' },
+  { id: 'settings',  label: 'Settings' },
+];
+
+function MobileSectionBar({
+  section, conversations, onChange, onOpenNav,
+}: {
+  section: DeskSection;
+  conversations: Conversation[];
+  onChange: (s: DeskSection) => void;
+  onOpenNav: () => void;
+}) {
+  const counts: Partial<Record<DeskSection, number>> = {
+    inbox: conversations.length,
+    unclaimed: conversations.filter((c) => c.status === 'unclaimed').length,
+    manager: conversations.filter((c) => c.vibes.seniority_needed === 'manager' || c.vibes.fraud_risk === 'high').length,
+    ready: conversations.filter((c) => c.status === 'ready_for_draft').length,
+  };
+
+  return (
+    <div className="md:hidden h-11 shrink-0 border-b border-zinc-800 bg-zinc-900 flex items-center">
+      <button
+        onClick={onOpenNav}
+        aria-label="Open sections"
+        className="h-full px-3 border-r border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 flex items-center justify-center shrink-0"
+      >
+        <Menu className="w-4 h-4" />
+      </button>
+      <div className="flex-1 min-w-0 overflow-x-auto flex">
+        {MOBILE_SECTIONS.map((s) => {
+          const active = section === s.id;
+          const n = counts[s.id];
+          return (
+            <button
+              key={s.id}
+              onClick={() => onChange(s.id)}
+              className={`shrink-0 h-full px-3 text-xs whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                active ? 'text-zinc-100 border-b-2 border-emerald-500' : 'text-zinc-500'
+              }`}
+            >
+              {s.label}
+              {typeof n === 'number' && n > 0 && (
+                <span className="text-2xs font-mono text-zinc-500">{n}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
