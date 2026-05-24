@@ -85,13 +85,12 @@ export default function LobbyPage() {
       </section>
 
       {/* Footer line */}
-      <footer className="relative z-10 px-8 pb-7 pt-4 border-t border-line-soft flex items-center justify-between text-2xs text-ink-dim">
-        <div className="flex items-center gap-3">
-          <span>{session.user.name} · <span className="text-gold uppercase tracking-wider">{session.user.role.replace('_', ' ')}</span></span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span>omniastores.ae · omniastores.com · +971 56 547 8227</span>
-        </div>
+      <footer className="relative z-10 px-8 pb-7 pt-4 border-t border-line-soft flex items-center justify-center text-2xs text-ink-dim">
+        <span>
+          <span className="text-ink">The House of Omnia</span>
+          <span className="mx-3 text-ink-faint">|</span>
+          <span>Private Management System for Omnia stores Team</span>
+        </span>
       </footer>
     </main>
   );
