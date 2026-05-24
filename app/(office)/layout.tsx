@@ -1,23 +1,26 @@
-import { Sidebar } from '@/components/navigation/sidebar';
 import { CommandBar } from '@/components/navigation/command-bar';
-import { PulseStrip } from '@/components/navigation/pulse-strip';
-import { getSession } from '@/lib/session';
+import { LobbyMark } from '@/components/navigation/lobby-mark';
 
-export default function OfficeLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const session = getSession();
-
+/**
+ * Office wrapper — intentionally NOT a chrome.
+ *
+ * omniahouse.ae is the whole domain. There is no parent app, no marketing
+ * site to sit inside, no SaaS dashboard. The "office" route group only
+ * exists so each room can declare its own internal layout without
+ * collision. There is no persistent sidebar, no pulse strip, no top bar.
+ *
+ * Two universal affordances ride on top of every room:
+ *   - LobbyMark — small floating brand badge top-left → back to lobby
+ *   - CommandBar — summoned with ⌘K, opt-in, never parked
+ *
+ * Anything else (queue, pulse, search) is the room's own decision.
+ */
+export default function OfficeLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen">
-      <Sidebar session={session} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <PulseStrip />
-        <main className="flex-1 px-8 py-7 max-w-[1400px] w-full mx-auto">{children}</main>
-      </div>
+    <>
+      <LobbyMark />
+      {children}
       <CommandBar />
-    </div>
+    </>
   );
 }
