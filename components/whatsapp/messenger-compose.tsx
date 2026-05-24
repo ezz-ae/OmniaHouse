@@ -8,7 +8,9 @@ import type { WritingCheck } from '@/lib/whatsapp/types';
 import type { ProductShare } from '@/lib/whatsapp/thread';
 import { formatAED } from '@/lib/utils';
 
-export type SlashAction = 'extract' | 'optimize' | 'verify' | 'magazine';
+export type SlashAction =
+  | 'extract' | 'optimize' | 'verify' | 'magazine'
+  | 'tamara'  | 'tabby'    | 'invoice' | 'complete' | 'sync';
 
 /**
  * Compose — one row, real-sized input, big targets.
@@ -66,6 +68,11 @@ export function MessengerCompose({
     { id: 'extract',  label: '/extract',  hint: 'Pull a structured order from this chat' },
     { id: 'optimize', label: '/optimize', hint: 'Predict conversion + rewrite the draft' },
     { id: 'verify',   label: '/verify',   hint: 'Check the latest payment screenshot' },
+    { id: 'tamara',   label: '/tamara',   hint: 'Generate a Tamara 4-installment payment link' },
+    { id: 'tabby',    label: '/tabby',    hint: 'Generate a Tabby 4-installment payment link' },
+    { id: 'invoice',  label: '/invoice',  hint: 'Send the Shopify draft invoice to the customer' },
+    { id: 'complete', label: '/complete', hint: 'Mark the pushed Shopify draft as paid/complete' },
+    { id: 'sync',     label: '/sync',     hint: 'Refresh customer cashback wallet balance' },
     { id: 'magazine', label: '/magazine', hint: 'Post-purchase personalized magazine' },
   ], []);
 

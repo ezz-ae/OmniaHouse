@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Image as ImageIcon, FileText, AudioLines, ShieldCheck, ShieldAlert } from 'lucide-react';
 import {
   ExtractCard, OptimizeCard, VerifyCard, MagazineCard, ShortcutCard, SystemNote,
-  ProductShareCard,
+  ProductShareCard, PaymentLinkCard,
 } from './ai-message-cards';
 import type { Message } from '@/lib/whatsapp/types';
 import type { Turn } from '@/lib/whatsapp/thread';
@@ -83,6 +83,12 @@ export function ConversationThread({
                   return (
                     <div key={i} className="pt-4">
                       <ProductShareCard data={t.data} at={t.at} onDismiss={dismiss} onSendToCustomer={onSendProduct} />
+                    </div>
+                  );
+                case 'payment_link':
+                  return (
+                    <div key={i} className="pt-4">
+                      <PaymentLinkCard data={t.data} at={t.at} onDismiss={dismiss} onSendToCustomer={onSendProduct} />
                     </div>
                   );
                 case 'shortcut':

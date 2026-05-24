@@ -22,6 +22,16 @@ export type ProductShare = {
   is_limited_edition: boolean;
 };
 
+export type PaymentLink = {
+  provider: 'tamara' | 'tabby';
+  amount_aed: number;
+  installments: number;
+  per_installment_aed: number;
+  url: string;
+  expires_at: string;
+  customer_phone: string;
+};
+
 export type Turn =
   | { kind: 'message'; at: string; data: Message }
   | { kind: 'extract'; at: string; data: Extraction }
@@ -30,6 +40,7 @@ export type Turn =
   | { kind: 'magazine'; at: string; data: Magazine }
   | { kind: 'shortcut'; at: string; data: { trigger_key: string; en: string; ar: string } }
   | { kind: 'product_share'; at: string; data: ProductShare }
+  | { kind: 'payment_link'; at: string; data: PaymentLink }
   | { kind: 'system'; at: string; data: { text: string; tone?: 'info' | 'warn' | 'good' | 'bad' } };
 
 export function messagesToTurns(messages: Message[]): Turn[] {

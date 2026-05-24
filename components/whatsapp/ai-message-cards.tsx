@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle, Package, ExternalLink, Crown, Send } from 'lucide-react';
+import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle, Package, ExternalLink, Crown, Send, Link2, Clock } from 'lucide-react';
 import { routeForOrder } from '@/lib/whatsapp/routing';
 import { formatAED } from '@/lib/utils';
 import type { Extraction, ReplyOptimization, PaymentVerification, Magazine, CustomerCard } from '@/lib/whatsapp/types';
-import type { ProductShare } from '@/lib/whatsapp/thread';
+import type { ProductShare, PaymentLink } from '@/lib/whatsapp/thread';
 
 /**
  * AI cards — comfortable mature sizing, single sans-serif, no fashion.
@@ -236,6 +236,61 @@ export function SystemNote({ text, tone = 'info', at }: { text: string; tone?: '
       <span className="opacity-70 mr-2 numeric">{at}</span>
       {text}
     </div>
+  );
+}
+
+// ─── Payment link (Tamara / Tabby) ─────────────────────────────────────────
+
+export function PaymentLinkCard({
+  data, at, onSendToCustomer, onDismiss,
+}: {
+  data: PaymentLink;
+  at: string;
+  onSendToCustomer?: (text: string) => void;
+  onDismiss?: () => void;
+}) {
+  const providerName = data.provider === 'tamara' ? 'Tamara' : 'Tabby';
+  const waMessage =
+    `${providerName} · ${data.installments} × ${formatAED(data.per_installment_aed)} (no fees)\n` +
+    `Total: ${formatAED(data.amount_aed)}\n` +
+    `${data.url}`;
+
+  return (
+    <Shell tone="emerald" icon={Link2} title={`${providerName} payment link`} at={at} onDismiss={onDismiss}>
+      <div className="flex items-baseline gap-3 mb-3">
+        <span className="text-2xl font-semibold text-zinc-100 numeric">{formatAED(data.amount_aed)}</span>
+        <span className="text-sm text-zinc-400">
+          {data.installments} × <span className="text-zinc-100 numeric">{formatAED(data.per_installment_aed)}</span>
+        </span>
+        <span className="ml-auto text-xs text-zinc-500 flex items-center gap-1">
+          <Clock className="w-3 h-3" /> expires {data.expires_at}
+        </span>
+      </div>
+
+      <div className="px-3 py-2 rounded bg-zinc-900 border border-zinc-700 mb-3 flex items-center gap-2">
+        <Link2 className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+        <span className="text-xs font-mono text-zinc-300 truncate flex-1">{data.url}</span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onSendToCustomer?.(waMessage)}
+          className="flex-1 h-9 px-3 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 flex items-center justify-center gap-1.5"
+        >
+          <Send className="w-3.5 h-3.5" /> Send to customer
+        </button>
+        <CopyBtn text={data.url} label="Copy URL" />
+        <a
+          href={data.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="h-9 px-3 rounded-md bg-zinc-800 text-zinc-100 text-sm hover:bg-zinc-700 border border-zinc-700 flex items-center gap-1.5"
+          title="Open checkout"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      </div>
+    </Shell>
   );
 }
 

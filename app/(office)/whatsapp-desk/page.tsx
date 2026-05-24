@@ -9,7 +9,7 @@ import { MessengerCompose, type SlashAction } from '@/components/whatsapp/messen
 import { CopyablePhone } from '@/components/whatsapp/copyable-phone';
 import {
   getConversations, getCustomerCard, mockExtract, mockOptimizeReply,
-  mockVerifyPayment, mockMagazine,
+  mockVerifyPayment, mockMagazine, mockGeneratePaymentLink,
 } from '@/lib/whatsapp/mock';
 import { messagesToTurns, type Turn, type ProductShare } from '@/lib/whatsapp/thread';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
@@ -98,6 +98,47 @@ export default function WhatsAppDeskPage() {
       }
     } else if (action === 'magazine') {
       addTurn({ kind: 'magazine', at: now(), data: mockMagazine(card.display_name || 'Customer') });
+    } else if (action === 'tamara' || action === 'tabby') {
+      // Use the latest extract's total; otherwise ask the agent to extract first
+      const chatExtras = extraTurns[active.id] || [];
+      const lastExtract = [...chatExtras].reverse().find((t) => t.kind === 'extract') as any;
+      const total = lastExtract?.data?.totals?.total
+        ?? lastExtract?.data?.selected_products?.reduce((s: number, p: any) => s + (p.price_aed || 0) * p.qty, 0)
+        ?? 0;
+      if (!total) {
+        addTurn({ kind: 'system', at: now(), data: { text: `Run /extract first — ${action} link needs an amount.`, tone: 'warn' } });
+      } else {
+        addTurn({ kind: 'payment_link', at: now(), data: mockGeneratePaymentLink(action, total, active.phone) });
+      }
+    } else if (action === 'invoice') {
+      const chatExtras = extraTurns[active.id] || [];
+      const pushed = chatExtras.some((t) => t.kind === 'system' && /Draft pushed to/.test((t as any).data?.text || ''));
+      if (!pushed) {
+        addTurn({ kind: 'system', at: now(), data: { text: 'Push the draft first, then /invoice can email it.', tone: 'warn' } });
+      } else {
+        const lastExtract = [...chatExtras].reverse().find((t) => t.kind === 'extract') as any;
+        const amount = lastExtract?.data?.totals?.total ?? 0;
+        const amountStr = amount ? ` for ${formatAED(amount)}` : '';
+        addTurn({ kind: 'system', at: now(), data: { text: `Shopify draft invoice emailed to ${card.display_name || 'customer'}${amountStr} · payment link included`, tone: 'good' } });
+      }
+    } else if (action === 'complete') {
+      const chatExtras = extraTurns[active.id] || [];
+      const invoiced = chatExtras.some((t) => t.kind === 'system' && /invoice emailed/.test((t as any).data?.text || ''));
+      const pushed = chatExtras.some((t) => t.kind === 'system' && /Draft pushed to/.test((t as any).data?.text || ''));
+      if (!pushed) {
+        addTurn({ kind: 'system', at: now(), data: { text: 'No pushed draft to complete in this chat.', tone: 'warn' } });
+      } else {
+        const note = invoiced
+          ? 'Shopify order marked complete · payment captured · fulfillment can begin'
+          : 'Shopify order marked complete · cashback wallet updated';
+        addTurn({ kind: 'system', at: now(), data: { text: note, tone: 'good' } });
+      }
+    } else if (action === 'sync') {
+      const bal = card.wallet?.balance_aed ?? 0;
+      const txt = card.matched
+        ? `Wallet synced from customer_wallets · balance ${formatAED(bal)} · Limited Editions only`
+        : 'Customer not yet matched — nothing to sync.';
+      addTurn({ kind: 'system', at: now(), data: { text: txt, tone: card.matched ? 'info' : 'warn' } });
     }
   }
 

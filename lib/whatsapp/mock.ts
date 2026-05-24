@@ -2,7 +2,7 @@ import type {
   Conversation, CustomerCard, Extraction, ReplyOptimization, WritingCheck,
   PaymentVerification, Magazine, Vibes, GhostBrowse, CustomerHistory, WalletState,
 } from './types';
-import type { ProductShare } from './thread';
+import type { ProductShare, PaymentLink } from './thread';
 import { detectCountry, routeForOrder } from './routing';
 import { getCatalogue } from '@/lib/inventory/mock';
 
@@ -516,4 +516,32 @@ export function searchProducts(query: string, limit = 6): ProductShare[] {
       (p.woocommerce_qty !== null && p.woocommerce_qty > 0),
     is_limited_edition: p.is_limited_edition,
   }));
+}
+
+/**
+ * Tamara & Tabby hosted-checkout link generation.
+ * Real mode: POST to their merchant API with order_reference + amount +
+ * customer_phone + items. Both return a checkout URL.
+ * Mock mode: synthesizes a realistic-looking URL with a 24h expiry.
+ */
+export function mockGeneratePaymentLink(
+  provider: 'tamara' | 'tabby',
+  amount_aed: number,
+  customer_phone: string,
+): PaymentLink {
+  const installments = 4;
+  const per_installment_aed = Math.round((amount_aed / installments) * 100) / 100;
+  const ref = Math.random().toString(36).slice(2, 10);
+  const base = provider === 'tamara' ? 'https://checkout.tamara.co/oh' : 'https://api.tabby.ai/checkout/oh';
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 16).replace('T', ' ');
+  return {
+    provider,
+    amount_aed,
+    installments,
+    per_installment_aed,
+    url: `${base}/${ref}`,
+    expires_at: expires + ' GST',
+    customer_phone,
+  };
 }
