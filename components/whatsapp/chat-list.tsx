@@ -2,14 +2,14 @@
 
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Badge, Dot } from '@/components/ui/badge';
 import type { Conversation } from '@/lib/whatsapp/types';
 import { maskPhoneForLogs } from '@/lib/whatsapp/routing';
 import { Search, AlertTriangle, Sparkles, Phone } from 'lucide-react';
 
 /**
- * WhatsApp-style chat list. Slim, content-first, no big counters block.
- * Smart-sort by AI priority is opt-in (toggle).
+ * Chat list — sized and toned to feel like a messenger sidebar, not a
+ * data table. Gold pulled out of the chrome; reserved for the active
+ * row indicator + unread badge.
  */
 export function ChatList({
   conversations,
@@ -39,23 +39,23 @@ export function ChatList({
   }, [conversations, q, smart]);
 
   return (
-    <div className="flex flex-col h-full bg-canvas-raised/40">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2 border-b border-line-soft">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Phone className="w-3.5 h-3.5 text-gold" />
-            <span className="text-sm font-medium text-ink">+971 56 547 8227</span>
+    <div className="flex flex-col h-full bg-canvas">
+      {/* Header — slim */}
+      <div className="px-3 pt-3 pb-2 border-b border-line-soft">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <Phone className="w-3.5 h-3.5 text-ink-muted shrink-0" />
+            <span className="text-xs font-medium text-ink truncate font-mono">+971 56 547 8227</span>
           </div>
           <button
             onClick={() => setSmart(!smart)}
             className={cn(
-              'flex items-center gap-1 px-2 h-6 rounded-full text-2xs border transition-colors',
-              smart ? 'bg-gold/10 text-gold border-gold/30' : 'border-line text-ink-dim',
+              'flex items-center gap-1 px-1.5 h-5 rounded text-2xs border transition-colors',
+              smart ? 'bg-gold/10 text-gold border-gold/30' : 'border-line text-ink-dim hover:text-ink',
             )}
             title="Sort by AI priority"
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-2.5 h-2.5" />
             {smart ? 'smart' : 'recent'}
           </button>
         </div>
@@ -65,7 +65,7 @@ export function ChatList({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search chats"
-            className="w-full h-8 pl-8 pr-3 bg-canvas-panel border border-line rounded-full text-xs text-ink placeholder:text-ink-dim focus:border-gold/50 focus:ring-1 focus:ring-gold/30 outline-none"
+            className="w-full h-8 pl-8 pr-3 bg-canvas-panel border border-line-soft rounded-md text-xs text-ink placeholder:text-ink-dim focus:border-line-strong outline-none"
           />
         </div>
       </div>
@@ -88,12 +88,14 @@ export function ChatList({
                   active ? 'bg-canvas-inset border-l-gold' : 'border-l-transparent',
                 )}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   {/* Avatar */}
                   <div
                     className={cn(
-                      'w-9 h-9 rounded-full flex items-center justify-center font-medium text-2xs text-canvas shrink-0',
-                      c.customer_id ? 'bg-gradient-to-br from-gold to-gold-deep' : 'bg-canvas-inset border border-line text-ink-dim',
+                      'w-9 h-9 rounded-full flex items-center justify-center font-medium text-xs shrink-0',
+                      c.customer_id
+                        ? 'bg-gradient-to-br from-gold to-gold-deep text-canvas'
+                        : 'bg-canvas-panel border border-line text-ink-dim',
                     )}
                   >
                     {c.customer_id
@@ -105,30 +107,32 @@ export function ChatList({
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <span className="text-sm font-medium text-ink truncate flex items-center gap-1.5">
                         {highPriority && <AlertTriangle className="w-3 h-3 text-bad shrink-0" />}
-                        {c.customer_id ? c.customer_id.replace('cu_', '').replace(/^./, (s) => s.toUpperCase()) + '.' : <span className="italic text-ink-dim">{maskPhoneForLogs(c.phone)}</span>}
+                        {c.customer_id ? c.customer_id.replace('cu_', '').replace(/^./, (s) => s.toUpperCase()) + '.' : <span className="italic text-ink-dim font-mono text-xs">{maskPhoneForLogs(c.phone)}</span>}
                       </span>
                       <span className="text-2xs text-ink-dim numeric shrink-0">{c.last_at}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
-                        className="text-xs text-ink-muted truncate flex-1"
+                        className="text-xs text-ink-muted truncate flex-1 leading-snug"
                         dir={c.language === 'ar' ? 'rtl' : 'ltr'}
                       >
                         {last?.body}
                       </span>
                       {c.unread > 0 && (
-                        <span className="px-1.5 h-4 rounded-full bg-gold text-canvas text-2xs font-medium numeric shrink-0">
+                        <span className="px-1.5 h-4 rounded-full bg-gold text-canvas text-2xs font-semibold numeric shrink-0 flex items-center">
                           {c.unread}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1 text-2xs">
-                      {c.status === 'unclaimed' && <Badge tone="bad">unclaimed</Badge>}
-                      {c.status === 'ready_for_draft' && <Badge tone="gold">ready</Badge>}
-                      {c.vibes.seniority_needed === 'manager' && <Badge tone="bad">manager</Badge>}
-                      {c.vibes.fraud_risk === 'high' && <Badge tone="bad">fraud</Badge>}
-                      {c.vibes.urgency === 'critical' && <Badge tone="warn">urgent</Badge>}
-                    </div>
+                    {(c.status === 'unclaimed' || c.status === 'ready_for_draft' || highPriority) && (
+                      <div className="flex items-center gap-1 mt-1 text-2xs">
+                        {c.status === 'unclaimed' && <Chip tone="bad">unclaimed</Chip>}
+                        {c.status === 'ready_for_draft' && <Chip tone="gold">ready</Chip>}
+                        {c.vibes.seniority_needed === 'manager' && <Chip tone="bad">manager</Chip>}
+                        {c.vibes.fraud_risk === 'high' && <Chip tone="bad">fraud</Chip>}
+                        {c.vibes.urgency === 'critical' && <Chip tone="warn">urgent</Chip>}
+                      </div>
+                    )}
                   </div>
                 </div>
               </button>
@@ -137,6 +141,20 @@ export function ChatList({
         })}
       </ul>
     </div>
+  );
+}
+
+function Chip({ tone, children }: { tone: 'gold' | 'good' | 'warn' | 'bad'; children: React.ReactNode }) {
+  const tones = {
+    gold: 'text-gold bg-gold/10 border-gold/25',
+    good: 'text-good bg-good/10 border-good/25',
+    warn: 'text-warn bg-warn/10 border-warn/25',
+    bad:  'text-bad  bg-bad/10  border-bad/25',
+  };
+  return (
+    <span className={cn('inline-flex items-center px-1.5 h-4 rounded text-2xs font-medium border', tones[tone])}>
+      {children}
+    </span>
   );
 }
 

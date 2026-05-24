@@ -145,14 +145,14 @@ export default function WhatsAppDeskPage() {
   return (
     <div className="h-screen w-full overflow-hidden bg-canvas flex">
       {/* LEFT — chat list */}
-      <aside className="w-[320px] shrink-0 border-r border-line-soft">
+      <aside className="w-[340px] shrink-0 border-r border-line-soft bg-canvas">
         <ChatList conversations={baseConversations} activeId={activeId} onSelect={setActiveId} />
       </aside>
 
       {/* RIGHT — conversation */}
-      <main className="flex-1 min-w-0 flex flex-col">
-        {/* Contact header (slim) */}
-        <header className="h-14 shrink-0 border-b border-line-soft px-4 flex items-center gap-3">
+      <main className="flex-1 min-w-0 flex flex-col bg-canvas">
+        {/* Contact header (slim, 52px) */}
+        <header className="h-[52px] shrink-0 border-b border-line-soft px-4 flex items-center gap-3 bg-canvas">
           <button
             onClick={() => setCustomerOpen(true)}
             className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity"
