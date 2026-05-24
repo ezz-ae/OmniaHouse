@@ -6,6 +6,7 @@ import { ParityCard, applyParityFilter, type ParityFilter } from '@/components/i
 import { StrategistPanel } from '@/components/inventory/strategist-panel';
 import { SEODrawer } from '@/components/inventory/seo-drawer';
 import { VeoDrawer } from '@/components/inventory/veo-drawer';
+import { HexEmbed } from '@/components/inventory/hex-embed';
 import { getCatalogue, getParitySummary } from '@/lib/inventory/mock';
 import { toProduct, paritySummaryFromLive } from '@/lib/inventory/live-adapter';
 import { runStrategy } from '@/lib/inventory/strategy';
@@ -39,6 +40,7 @@ export default function InventoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [source, setSource] = useState<'mock' | 'live'>('mock');
+  const [view, setView] = useState<'catalogue' | 'hex'>('catalogue');
 
   // Fetch live catalogue on mount
   useEffect(() => { loadLive(false); }, []);
@@ -171,6 +173,39 @@ export default function InventoryPage() {
       <DeskTopBar />
 
       <div className="px-6 md:px-10 lg:px-14 pt-6 pb-24">
+        {/* VIEW SWITCHER — Catalogue (native) vs Hex (analyst notebook) */}
+        <div className="max-w-[1920px] mx-auto mb-3 flex items-center gap-1.5">
+          <button
+            onClick={() => setView('catalogue')}
+            className={cn(
+              'h-8 px-3 rounded-md text-xs border transition-colors',
+              view === 'catalogue'
+                ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
+                : 'border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60',
+            )}
+          >
+            Catalogue
+          </button>
+          <button
+            onClick={() => setView('hex')}
+            className={cn(
+              'h-8 px-3 rounded-md text-xs border transition-colors flex items-center gap-1.5',
+              view === 'hex'
+                ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
+                : 'border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60',
+            )}
+          >
+            Hex view
+            <span className="text-2xs text-zinc-500">· same scrape</span>
+          </button>
+        </div>
+
+        {view === 'hex' ? (
+          <div className="max-w-[1920px] mx-auto">
+            <HexEmbed />
+          </div>
+        ) : (
+        <>
         {/* PROMINENT SEARCH BAR — big and always visible, with status + actions */}
         <div className="max-w-[1920px] mx-auto mb-4">
           <div className="flex items-center gap-3">
@@ -317,6 +352,8 @@ export default function InventoryPage() {
               </div>
             )}
           </>
+        )}
+        </>
         )}
       </div>
 
