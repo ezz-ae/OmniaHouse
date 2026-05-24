@@ -89,9 +89,9 @@ export default function LobbyPage() {
                     <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60" />
                     <span className="relative w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   </span>
-                  <span className="text-2xs uppercase tracking-wider text-emerald-300">Omnia AI is Live</span>
+                  <span className="text-2xs uppercase tracking-wider text-emerald-300">Omnia AI · Online</span>
                 </span>
-                <span className="text-zinc-500">Ask anything, or pick a room below.</span>
+                <span className="text-zinc-500">Pick a room, or ask a question.</span>
               </div>
             </div>
 

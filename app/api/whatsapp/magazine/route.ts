@@ -28,7 +28,7 @@ export async function POST(req: Request) {
         temperature: 0.7, // creative output
       });
       if (real) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', magazine: real });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', magazine: real });
       }
     }
 

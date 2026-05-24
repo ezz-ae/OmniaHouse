@@ -7,11 +7,8 @@ import {
 } from 'lucide-react';
 
 /**
- * Milestone — the page that explains the House.
- *
- * No names. No ownership. No "built by". Just what it is, what it does,
- * and where it is going. Anyone on the team can read this and know how
- * the rooms connect and what work is open.
+ * Milestone — the page anyone on the team can open to understand the House.
+ * Plain language. No jargon. Each room: what problem it solves and how.
  */
 export default function MilestonePage() {
   return (
@@ -27,124 +24,143 @@ export default function MilestonePage() {
               The House of Omnia
             </h1>
             <p className="text-base text-zinc-400 leading-relaxed">
-              A private digital office for the team that runs the stores and the WhatsApp desk.
-              Every room here mirrors a real part of the operation. No marketing surface, no public
-              site — only what the team uses every day.
+              One private place where the team runs both stores and the WhatsApp line
+              from a single screen — without losing chats, drifting prices, or chasing
+              files in five apps.
             </p>
           </div>
 
-          {/* What this is */}
-          <Section title="What this is">
+          {/* What it is */}
+          <Section title="What it is">
             <p>
-              The House is the place where the work happens. It connects the two storefronts
-              (omniastores.ae on Shopify and omniastores.com on WooCommerce) with the WhatsApp
-              line (+971 56 547 8227) and turns every conversation, every order, every product
-              into one record. The team picks up a chat, drafts an order, pushes it to the right
-              store, and watches it settle — all without leaving the House.
+              The House is our internal office. Customers never see it. We do.
+              Whatever happens on omniastores.ae, omniastores.com, or the WhatsApp
+              number lands here in one place. The team picks it up, decides, and acts —
+              and the system keeps a record of what was done and why.
             </p>
             <p>
-              Omnia AI is the assistant that watches across rooms. It does not run the team. It
-              notices what is stuck, suggests who should pick it up, and remembers the patterns
-              so the next chat is faster than the last. When the team agrees with a suggestion,
-              the action is one click. When they do not, the AI steps back.
+              Omnia AI sits inside the House like a quiet colleague. It does not run
+              the team. It reads what is happening across the rooms, points out what
+              looks stuck, and offers a next step. A person still decides. A person
+              still presses the button.
             </p>
           </Section>
 
-          {/* What it does */}
-          <Section title="What it does">
+          {/* Why it exists */}
+          <Section title="Why it exists">
             <Bullets>
-              <Bullet>Reads from both storefronts. Writes draft orders back when a chat is ready.</Bullet>
-              <Bullet>Keeps one record of every customer across .ae, .com, and WhatsApp.</Bullet>
-              <Bullet>Spots price drift between the two stores and flags the item before a customer asks.</Bullet>
-              <Bullet>Reads incoming WhatsApp messages, drafts a reply in the right language, and routes the conversation to the right person.</Bullet>
-              <Bullet>Logs every action so nothing is lost — who did what, when, and why.</Bullet>
-              <Bullet>Holds the wallet balance for cashback, the limited-edition catalogue, the SEO scores, and the shipping board.</Bullet>
+              <Bullet><b>One brand, two stores.</b> Prices, stock, and product info should match across .ae and .com. When they drift, customers notice.</Bullet>
+              <Bullet><b>WhatsApp is a third of the revenue.</b> If a chat is missed, the order is lost. We need every chat picked up.</Bullet>
+              <Bullet><b>The team works in different rooms.</b> Sales, marketing, shipping, finance — each needs the same customer record without forwarding screenshots.</Bullet>
+              <Bullet><b>Decisions go missing.</b> What we agreed in a meeting last week should still be visible next week.</Bullet>
+              <Bullet><b>Mistakes are expensive.</b> A refund mishandled or a fake payment proof accepted costs money and trust. The House catches both early.</Bullet>
             </Bullets>
           </Section>
 
           {/* The rooms */}
           <Section title="The rooms">
             <p>
-              Each room is a focused tool. They share the same data and the same identity, but
-              each one is designed for one job. Nothing is repeated between rooms.
+              Each room is one tool, doing one job. You move between rooms with the
+              Go menu at the top right. Nothing repeats between rooms — they share
+              the same customer, the same product, the same record.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-              <RoomCard icon={MessageSquare} name="WhatsApp Desk" what="The room +971 56 547 8227 lives in. Read chats, draft orders, verify payments, push to the right store." />
-              <RoomCard icon={Package} name="Inventory" what="Catalogue across both stores. Price parity, SEO scores, stock levels, restock signals." />
-              <RoomCard icon={ShoppingBag} name="Orders" what="Cross-channel order queue. Drafts, paid, shipped, refund-pending." />
-              <RoomCard icon={Truck} name="Shipping" what="Dispatch board. Courier sheets. Proof of delivery. Exception lane." />
-              <RoomCard icon={Wallet} name="Cashback" what="Customer wallets. Limited-edition redemption. Public portal per customer." />
-              <RoomCard icon={DollarSign} name="Finance" what="Settlements across stores. Reconciliation. BNPL (Tamara, Tabby) accounting." />
-              <RoomCard icon={Sparkles} name="Brand Intelligence" what="GA events, Meta sentiment, ghost-browse heatmap. The signal layer." />
-              <RoomCard icon={BarChart3} name="Reports" what="Daily, weekly, monthly summaries. Auto-generated, plain language." />
-              <RoomCard icon={Bot} name="Omnia AI" what="The agentic surface. One AI partner per team member. Tasks routed by skill match." />
-              <RoomCard icon={Mic} name="Meeting Room" what="Meeting transcripts. Decisions captured. Follow-ups tracked to completion." />
-              <RoomCard icon={HardDrive} name="Drive Room" what="The Safe. Files with visibility rules. Corridors that hand a file to the right room." />
-              <RoomCard icon={Users} name="Customers" what="Unified customer profiles. Lifetime value. Wallet balance. Ghost identity links." />
-              <RoomCard icon={Users2} name="Team" what="Skills, performance, XP, collaboration score." />
-              <RoomCard icon={TreePine} name="Backyard" what="Events, milestones, perks, wellbeing pulse. The +1 culture room." />
-              <RoomCard icon={CheckSquare} name="Co-Tasking" what="Help requests between team members. Helper XP. Acceptance flow." />
-              <RoomCard icon={Building2} name="Management" what="Integrations health. Draft orders. CRM sync. The operator's switchboard." />
-              <RoomCard icon={KeyRound} name="Access Requests" what="Pending team approvals. Logged to audit_logs." />
-              <RoomCard icon={Settings} name="Settings" what="Per-account preferences. Connection keys. PII masking rules." />
+              <RoomCard icon={MessageSquare} name="WhatsApp Desk" what="Where every WhatsApp chat is answered, the customer is identified, and an order draft is built without leaving the chat." />
+              <RoomCard icon={Package} name="Inventory" what="One view of the full catalogue across both stores. Spots price drift between .ae and .com. Tells us what to restock and what to push." />
+              <RoomCard icon={ShoppingBag} name="Orders" what="One queue for every order — store, WhatsApp, draft, paid, shipped, refunded. No flipping between dashboards." />
+              <RoomCard icon={Truck} name="Shipping" what="Three lanes: urgent today, KSA & Gulf, exceptions. Courier sheets and proof of delivery in the same place." />
+              <RoomCard icon={Wallet} name="Cashback" what="Customer wallets, earned from real purchases. Spent only on Limited Editions. Each customer has a private link to check their balance." />
+              <RoomCard icon={DollarSign} name="Finance" what="Daily settlements from both stores, refund history, and the BNPL accounting for Tamara and Tabby." />
+              <RoomCard icon={Sparkles} name="Brand Intelligence" what="What the market is doing to us. Negative comment surges, ad performance dips, and the suggested posting times for next week." />
+              <RoomCard icon={BarChart3} name="Reports" what="Plain-language summaries — daily, weekly, monthly. Not a wall of charts. A short read of what happened and what changed." />
+              <RoomCard icon={Bot} name="Omnia AI" what="Talk to Omnia AI to ask anything across the rooms. Talk to a teammate's assistant to leave them a note or hand off a task without interrupting them." />
+              <RoomCard icon={Mic} name="Meeting Room" what="Meetings are recorded, summarised, and turned into a list of decisions and follow-ups. Nothing said is lost." />
+              <RoomCard icon={HardDrive} name="Drive Room" what="The Safe — every file we keep, with who can see it. The Corridors hand a file to the right room (an invoice to Inventory, a settlement to Finance)." />
+              <RoomCard icon={Users} name="Customers" what="One profile per customer across .ae, .com, and WhatsApp. Lifetime value, history, wallet, and any past issues — all in one place." />
+              <RoomCard icon={Users2} name="Team" what="Who is online, what they are working on right now, what they closed today." />
+              <RoomCard icon={TreePine} name="Backyard" what="The culture room — perks earned, milestones reached, food orders, and a private wellbeing check-in." />
+              <RoomCard icon={CheckSquare} name="Co-Tasking" what="When someone needs help, they post it here. Whoever picks it up earns credit. Builds the habit of helping each other." />
+              <RoomCard icon={Building2} name="Management" what="The switchboard. Shows whether each connection (Shopify, WooCommerce, payments, BNPL) is healthy, and lists the open draft orders ready to push." />
+              <RoomCard icon={KeyRound} name="Access Requests" what="When someone needs to see a new room, they ask here. The owner approves or rejects, and the decision is logged." />
+              <RoomCard icon={Settings} name="Settings" what="Per-person preferences. Connection keys live here, never visible in chats or logs." />
             </div>
           </Section>
 
-          {/* How it is built */}
-          <Section title="How it is built">
+          {/* What the team gets */}
+          <Section title="What it changes for the team">
             <Bullets>
-              <Bullet>One Next.js app. One TypeScript codebase. One Tailwind theme — dark gray, one sans-serif, comfortable sizes.</Bullet>
-              <Bullet>Supabase holds the source of truth: customers, orders, conversations, agents, tasks, memory, files. Twenty-four SQL migrations define the schema.</Bullet>
-              <Bullet>Row-level security at the database — every read and write is gated by role.</Bullet>
-              <Bullet>Live data from the storefronts is fetched directly from the public product feeds, cached for thirty minutes, then refreshed in the background.</Bullet>
-              <Bullet>When the AI key is configured, prompts call GPT-4o. When the key is absent, the same UI works with deterministic mocks so nothing breaks.</Bullet>
-              <Bullet>Every change is reviewed before it lands on main. Nothing ships without a clean build.</Bullet>
+              <Bullet><b>One chat, one customer.</b> When Aisha messages us on WhatsApp, the desk already knows her last order, her wallet, and what she browsed without buying.</Bullet>
+              <Bullet><b>Drafts go to the right store on the first try.</b> The system picks .ae or .com based on where the customer ordered before, not by guessing.</Bullet>
+              <Bullet><b>Price drift is caught the same day.</b> If the ruby bangle is AED 950 on one store and 1,100 on the other, we see it before the customer does.</Bullet>
+              <Bullet><b>Refunds and exceptions are recorded.</b> Who asked, who decided, on what date, in what currency. Always.</Bullet>
+              <Bullet><b>Help is fast.</b> Stuck on a chat in Arabic? Co-Tasking gets a colleague on it in minutes — and they earn credit for helping.</Bullet>
+              <Bullet><b>Less typing.</b> Templates and drafts handle the repeatable parts so the team can spend time on the parts that need a human.</Bullet>
             </Bullets>
           </Section>
 
-          {/* The plan */}
-          <Section title="The plan">
+          {/* What Omnia AI helps with */}
+          <Section title="What Omnia AI helps with">
+            <Bullets>
+              <Bullet><b>It reads, doesn&apos;t act.</b> The AI never sends a message to a customer on its own and never approves a refund on its own.</Bullet>
+              <Bullet><b>It suggests the next move.</b> &ldquo;This chat has been waiting 40 minutes — pick it up.&rdquo; &ldquo;This product is hot, restock.&rdquo; &ldquo;This comment looks like a brand attack.&rdquo;</Bullet>
+              <Bullet><b>It remembers what we decided.</b> When the same question comes up next month, the answer is already there.</Bullet>
+              <Bullet><b>It writes the first draft.</b> Reply to a customer, SEO for a product, a magazine page after a purchase — written by Omnia AI, edited by the person.</Bullet>
+              <Bullet><b>It hands work to the right person.</b> A KSA bridal chat goes to the colleague with the KSA skill. The AI suggests it; the manager confirms it.</Bullet>
+            </Bullets>
+          </Section>
+
+          {/* Privacy + safety */}
+          <Section title="What stays safe">
+            <Bullets>
+              <Bullet>Phone numbers are masked in any log. The full number is only visible inside the chat that owns it.</Bullet>
+              <Bullet>Each room is gated by role. The shipping team does not see the finance ledger; finance does not see private notes.</Bullet>
+              <Bullet>Personal events in the Backyard (medical, family) are private by default. Only milestones the person chose to share are public.</Bullet>
+              <Bullet>Every approval — refund, discount above 10%, access to a new room — is logged. Always.</Bullet>
+            </Bullets>
+          </Section>
+
+          {/* Where we are */}
+          <Section title="Where we are today">
             <Phase
               n="1"
               title="Foundation"
               state="In progress"
-              body="Repo structured. Auth gate, lobby, top-level rooms in place. WhatsApp Desk and Inventory are deep — they read live, write back, run prompts. The other rooms are scaffolded with their shape and waiting for their domain pass."
+              body="The shell is in place. The WhatsApp Desk and Inventory are deep — they read live, run AI, and write back. The other rooms are scaffolded and ready to be filled."
             />
             <Phase
               n="2"
               title="Real data"
               state="Next"
-              body="Connect Supabase. Run the twenty-four migrations. Seed the team. Verify role isolation. The mocks become the fallback, not the default."
+              body="Connect the live store, customer, and order data. The screens stay the same — the numbers behind them become real."
             />
             <Phase
               n="3"
               title="Deep rooms"
               state="After"
-              body="One room at a time, in this order: Inventory deepening → Drive Room and Corridors → Brand Intelligence → Omnia AI agentic layer → Backyard culture → Co-Tasking → Meeting Room → Shipping → Orders → Cashback portal → Customers 360 → House aggregator."
+              body="One room at a time, in order: Drive Room → Brand Intelligence → Omnia AI assistants → Backyard → Co-Tasking → Meeting Room → Shipping → Orders → Cashback portal → Customers 360."
             />
             <Phase
               n="4"
               title="Live"
               state="Goal"
-              body="The team uses the House every day. The WhatsApp number is answered through the Desk. Drafts push to the right store on first try. Refunds and exceptions are logged and never lost. The two stores stop drifting."
+              body="The team uses the House every day. The WhatsApp number is answered through the Desk. Refunds and exceptions are logged and never lost. The two stores stop drifting."
             />
           </Section>
 
-          {/* Principles */}
+          {/* House rules */}
           <Section title="How we work in here">
             <Bullets>
-              <Bullet>Comfort over wow. The team uses this all day. Calm reads, no flashing.</Bullet>
-              <Bullet>Every screen shows real content. Empty surfaces are removed.</Bullet>
-              <Bullet>Numbers are visible. Phone numbers can be copied. No hidden state.</Bullet>
+              <Bullet>Calm over flashy. The team uses this all day; the screen should not be loud.</Bullet>
+              <Bullet>Every screen shows real content. No empty boxes that say &ldquo;soon&rdquo;.</Bullet>
               <Bullet>One way to navigate — the Go menu. No competing menus.</Bullet>
-              <Bullet>Names of customers are masked in logs. Personal data is gated by role.</Bullet>
               <Bullet>When the AI suggests, the human decides. The AI never sends without approval.</Bullet>
+              <Bullet>Names of customers are masked in any log. Personal data is gated by role.</Bullet>
             </Bullets>
           </Section>
 
           <div className="text-xs text-zinc-600 pt-8 border-t border-zinc-800 mt-10">
-            Read this whenever the shape of the system is unclear. If a room does something
-            different from what is described here, the description is out of date — say so.
+            If a room does something different from what is written here, the page is
+            out of date — flag it.
           </div>
         </div>
       </div>

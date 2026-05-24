@@ -4,9 +4,9 @@ export default function CoTaskingPage() {
   return (
     <RoomStub
       title="Co-Tasking"
-      description="Help requests between team members, collaboration score, +50 XP bonus for the helper on completion. Backed by co_tasks SQL. The agentic-task layer (agentic_tasks) is already live in the Omnia AI Room — peer-to-peer help is the next pass."
+      description="When someone needs help, they post it here. Whoever picks it up gets credit. Builds the habit of helping each other instead of going to one person every time."
       shortcuts={[
-        { label: 'Omnia AI', href: '/omnia-ai', hint: 'Tasks routed by Omnia + cross-agent notes are the foundation this room builds on.' },
+        { label: 'Omnia AI', href: '/omnia-ai', hint: 'Talk to a teammate\'s assistant first if the request can be answered without their full attention.' },
       ]}
     />
   );

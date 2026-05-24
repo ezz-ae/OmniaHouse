@@ -1,11 +1,11 @@
 import type { Agent, AgentMessage, AgentTask, AgentMemory, AgentNote, AgentFile } from './types';
 
 /**
- * The agentic mock data — Omnia AI + five team-member agents, with realistic
- * tasks routed, memory pinned, notes exchanged. This is the world that
- * boots when OpenAI/Supabase aren't wired yet.
+ * Mock data for the Omnia AI room.
  *
- * Team:  Ez · Abdelrahman · Arslan · Abdallah · Ahmed · Mohamed
+ * One Omnia AI assistant. One personal assistant per team member.
+ * The signed-in user is Mahmoud; the rest of the team are six people.
+ * Realistic enough that the room feels alive without a real backend.
  */
 
 export const AGENTS: Agent[] = [
@@ -16,8 +16,8 @@ export const AGENTS: Agent[] = [
     short_name: 'Omnia AI',
     avatar_color: '#10b981',
     online: true,
-    status: 'watching across all rooms',
-    skills: ['orchestration', 'strategic translation', 'task routing', 'ROI analysis'],
+    status: 'reading across the rooms',
+    skills: ['Reads every room', 'Routes work to the right person', 'Remembers what was decided'],
     languages: ['English', 'Arabic'],
     performance_score: 1.0,
     level: 99,
@@ -26,19 +26,37 @@ export const AGENTS: Agent[] = [
     help_received_count: 0,
   },
   {
+    id: 'agent_mahmoud',
+    kind: 'member',
+    name: 'Mahmoud · personal assistant',
+    short_name: 'Mahmoud',
+    for_user_id: 'u_mahmoud',
+    avatar_color: '#C68A4E',
+    online: true,
+    status: 'signed in · House of Omnia',
+    skills: ['Direction', 'Decisions', 'Brand voice'],
+    languages: ['English', 'Arabic'],
+    performance_score: 0.98,
+    level: 15,
+    xp: 1480,
+    help_given_count: 36,
+    help_received_count: 6,
+  },
+  {
     id: 'agent_ez',
     kind: 'member',
-    name: "Ez's Agent",
+    name: 'Ez · personal assistant',
     short_name: 'Ez',
     for_user_id: 'u_ez',
+    for_user_role: 'admin',
     avatar_color: '#D4A574',
     online: true,
-    status: 'in the lobby',
-    skills: ['architecture', 'strategy', 'product', 'engineering'],
+    status: 'across the rooms',
+    skills: ['Operations', 'Setup', 'Vendor coordination'],
     languages: ['English', 'Arabic'],
-    performance_score: 0.95,
-    level: 12,
-    xp: 1180,
+    performance_score: 0.93,
+    level: 11,
+    xp: 1020,
     help_given_count: 24,
     help_received_count: 18,
   },
@@ -142,7 +160,7 @@ export function getAgent(id: string): Agent | undefined {
   return AGENTS.find((a) => a.id === id);
 }
 
-// ─── Agentic tasks (from agentic_tasks SQL) ────────────────────────────────
+// ─── Tasks routed between assistants ───────────────────────────────────────
 
 const TASKS: AgentTask[] = [
   {
@@ -352,7 +370,7 @@ const MESSAGES_BY_AGENT: Record<string, AgentMessage[]> = {
   ],
   agent_ez: [
     { id: 'mh1', agent_id: 'agent_ez', from: 'user', body: 'what should i decide today?', at: '08:55' },
-    { id: 'mh2', agent_id: 'agent_ez', from: 'agent', body: 'Three decisions on your plate:\n\n1. **t3** — Resupply Moonstone Pendant (.ae). Only 3 left, sold 24 in 7d. Capex call.\n2. **t5** — Tamara vs Tabby. The cost sheet shows Tabby cheaper (12% vs 15%) but worse for COD customers.\n3. **t6** — Sign off on LE Celestial photography. Ahmed sent the final cut yesterday.\n\nThe ruby bangle drift (t1) is in Abdelrahman\'s hands. I\'m watching.', at: '08:55' },
+    { id: 'mh2', agent_id: 'agent_ez', from: 'agent', body: 'Three decisions on your plate:\n\n1. **t3** — Resupply Moonstone Pendant (.ae). Only 3 left, sold 24 in 7d. Capex call.\n2. **t5** — Tamara vs Tabby. The cost sheet shows Tabby cheaper (12% vs 15%) but worse for COD customers.\n3. **t6** — Sign off on LE Celestial photography. Ahmed sent the final cut yesterday.\n\nThe ruby bangle drift (t1) is in Abdelrahman\'s hands.', at: '08:55' },
   ],
   agent_arslan: [],
   agent_abdallah: [],

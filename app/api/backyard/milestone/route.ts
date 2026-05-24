@@ -17,10 +17,10 @@ export async function POST(req: Request) {
       const result = await callJSON({
         systemPrompt: MILESTONE_ORCHESTRATOR_PROMPT,
         userInput: JSON.stringify(body),
-        model: 'gpt-4o',
+        model: 'pro',
       });
       if (result) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', ...result });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', ...result });
       }
     }
 

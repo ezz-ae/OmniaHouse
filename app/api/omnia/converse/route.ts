@@ -52,11 +52,11 @@ export async function POST(req: Request) {
       const result = await callJSON({
         systemPrompt: OMNIA_PARTNERSHIP_PROMPT,
         userInput: JSON.stringify(context),
-        model: 'gpt-4o',
+        model: 'pro',
         temperature: 0.4,
       });
       if (result) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', ...result });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', ...result });
       }
     }
 

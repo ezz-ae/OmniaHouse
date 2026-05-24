@@ -19,10 +19,10 @@ export async function POST(req: Request) {
       const result = await callJSON({
         systemPrompt: META_SENTIMENT_PROMPT,
         userInput: comment,
-        model: 'gpt-4o-mini',
+        model: 'mini',
       });
       if (result) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o-mini', ...result });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'mini', ...result });
       }
     }
 

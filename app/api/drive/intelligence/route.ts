@@ -27,10 +27,10 @@ export async function POST(req: Request) {
           content_excerpt: body.content_excerpt ?? null,
           context: body.context ?? null,
         }),
-        model: 'gpt-4o',
+        model: 'pro',
       });
       if (result) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', ...result });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', ...result });
       }
     }
 

@@ -30,10 +30,10 @@ export async function POST(req: Request) {
           category: p.category,
           is_limited_edition: p.is_limited_edition,
         }),
-        model: 'gpt-4o',
+        model: 'pro',
       });
       if (veo) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', veo });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', veo });
       }
     }
 

@@ -11,7 +11,7 @@ export default function SettingsPage() {
           <p className="text-sm text-zinc-500 mb-8">Your profile and platform preferences.</p>
 
           <Section title="Identity">
-            <Row label="Signed in as" value="Ez" />
+            <Row label="Signed in as" value="Mahmoud" />
             <Row label="Organization" value="House of Omnia" />
           </Section>
 
@@ -22,10 +22,10 @@ export default function SettingsPage() {
           </Section>
 
           <Section title="AI">
-            <Row label="OpenAI key" value={<EnvStatus name="OPENAI_API_KEY" />} />
-            <Row label="Anthropic key" value={<EnvStatus name="ANTHROPIC_API_KEY" />} />
-            <Row label="Default extraction model" value="gpt-4o" />
-            <Row label="Fallback when unset" value="Deterministic mocks (lib/whatsapp/mock.ts)" />
+            <Row label="Google Gemini key" value={<EnvStatus name="GOOGLE_API_KEY" />} />
+            <Row label="Default model" value="gemini-2.0-flash" />
+            <Row label="Heavy reasoning model" value="gemini-1.5-pro" />
+            <Row label="When the key is missing" value="Falls back to safe mocks; UI keeps working." />
           </Section>
 
           <Section title="Data">

@@ -36,10 +36,10 @@ export async function POST(req: Request) {
           existing_seo_description: p.seo_description,
           missing_details: p.ai_audit_notes?.missing_details ?? [],
         }),
-        model: 'gpt-4o',
+        model: 'pro',
       });
       if (seo) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', seo, applied: !!apply });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', seo, applied: !!apply });
       }
     }
 

@@ -40,10 +40,10 @@ export async function POST(req: Request) {
       const result = await callJSON<{ suggestions: any[] }>({
         systemPrompt: INVENTORY_STRATEGY_PROMPT,
         userInput: JSON.stringify({ products: metrics }),
-        model: 'gpt-4o',
+        model: 'pro',
       });
       if (result?.suggestions) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', suggestions: result.suggestions });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', suggestions: result.suggestions });
       }
       // fall through to mock if AI failed
     }

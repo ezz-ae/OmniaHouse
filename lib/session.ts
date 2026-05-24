@@ -22,8 +22,8 @@ export type Session = {
 
 export const MOCK_SESSION: Session = {
   user: {
-    id: 'u_ez',
-    name: 'Ez',
+    id: 'u_mahmoud',
+    name: 'Mahmoud',
     role: 'owner',
     avatarColor: '#D4A574',
   },

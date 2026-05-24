@@ -17,10 +17,10 @@ export async function POST(req: Request) {
       const result = await callJSON({
         systemPrompt: INVOICE_COMPARISON_PROMPT,
         userInput: JSON.stringify({ invoice_a, invoice_b }),
-        model: 'gpt-4o',
+        model: 'pro',
       });
       if (result) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', ...result });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', ...result });
       }
     }
 

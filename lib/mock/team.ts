@@ -10,7 +10,8 @@ export type TeamMember = {
 
 export function getTeam(): TeamMember[] {
   return [
-    { id: 't1', name: 'Ez', role: 'owner', status: 'online', active_now: 'in the lobby', avatar_color: '#D4A574' },
+    { id: 't0', name: 'Mahmoud', role: 'owner', status: 'online', active_now: 'House of Omnia', avatar_color: '#C68A4E' },
+    { id: 't1', name: 'Ez', role: 'admin', status: 'online', active_now: 'across the rooms', avatar_color: '#D4A574' },
     { id: 't2', name: 'Abdelrahman', role: 'whatsapp_manager', status: 'online', active_now: 'WhatsApp Desk', closed_today: 9, avatar_color: '#7AA7D9' },
     { id: 't3', name: 'Arslan', role: 'whatsapp_agent', status: 'online', active_now: 'awaiting Noura A.', closed_today: 6, avatar_color: '#7CB87C' },
     { id: 't4', name: 'Abdallah', role: 'whatsapp_agent', status: 'away', closed_today: 4, avatar_color: '#D9A75B' },

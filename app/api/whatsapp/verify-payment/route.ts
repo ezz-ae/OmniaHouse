@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         userInput,
       });
       if (real) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', verification: real });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', verification: real });
       }
     }
 

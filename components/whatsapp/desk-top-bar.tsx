@@ -23,9 +23,9 @@ export function DeskTopBar() {
         </button>
         <div
           className="w-7 h-7 rounded-full bg-emerald-600 text-zinc-900 text-xs font-semibold flex items-center justify-center"
-          title="Ez"
+          title="Mahmoud"
         >
-          EZ
+          M
         </div>
         <div className="w-px h-5 bg-zinc-800 mx-1" />
         <GoMenu />

@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         userInput: `User role: ${userRole}\n\n### CHAT:\n${text}`,
       });
       if (real) {
-        return NextResponse.json({ ok: true, mode: 'real', model: 'gpt-4o', extraction: real });
+        return NextResponse.json({ ok: true, mode: 'real', model: 'pro', extraction: real });
       }
     }
 

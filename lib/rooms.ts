@@ -69,7 +69,7 @@ export const ROOMS: Room[] = [
   { slug: 'reports', name: 'Reports', group: 'intelligence', icon: BarChart3,
     description: 'Daily, weekly, monthly summaries.' },
   { slug: 'omnia-ai', name: 'Omnia AI', group: 'intelligence', icon: Bot,
-    description: 'The agentic partner. Reads across rooms.' },
+    description: 'Talk to Omnia AI and to each person\'s assistant.' },
   { slug: 'gemini-room', name: 'Gemini Room', group: 'intelligence', icon: Bot,
     description: 'Google AI workspace.' },
   { slug: 'meeting-room', name: 'Meeting Room', group: 'intelligence', icon: Mic,
