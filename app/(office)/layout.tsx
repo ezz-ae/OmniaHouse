@@ -1,19 +1,23 @@
 import { Sidebar } from '@/components/navigation/sidebar';
 import { CommandBar } from '@/components/navigation/command-bar';
-import { getUserRooms } from '@/lib/rbac';
+import { PulseStrip } from '@/components/navigation/pulse-strip';
+import { getSession } from '@/lib/session';
 
-export default async function OfficeLayout({
+export default function OfficeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const rooms = await getUserRooms();
+  const session = getSession();
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar rooms={rooms} />
-      <CommandBar rooms={rooms} />
-      <main className="flex-1 p-8 bg-white">{children}</main>
+      <Sidebar session={session} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <PulseStrip />
+        <main className="flex-1 px-8 py-7 max-w-[1400px] w-full mx-auto">{children}</main>
+      </div>
+      <CommandBar />
     </div>
   );
 }

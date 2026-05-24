@@ -2,7 +2,7 @@
   "name": "omniahouse",
   "version": "0.1.0",
   "private": true,
-  "description": "OmniaHouse — unified operating layer for OmniaStores LLC (omniastores.com WooCommerce + omniastores.ae Shopify + WhatsApp Desk).",
+  "description": "OmniaHouse — Command Center for OmniaStores LLC.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,10 +13,13 @@
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.45.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.408.0",
     "next": "14.2.5",
     "openai": "^4.56.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "tailwind-merge": "^2.4.0"
   },
   "devDependencies": {
     "@types/node": "20.14.10",

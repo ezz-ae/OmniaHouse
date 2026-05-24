@@ -1,5 +1,5 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/dist/client/components/headers';
+import { cookies } from 'next/headers';
 
 export async function logActivity(action: string, roomSlug?: string, metadata: any = {}) {
   const supabase = createServerComponentClient({ cookies });

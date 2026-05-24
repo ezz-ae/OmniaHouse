@@ -1,206 +1,228 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { ROOMS } from '@/lib/rooms';
+import { cn } from '@/lib/utils';
+import { Kbd } from '@/components/ui/button';
+import { Search, ArrowRight, Hash, Sparkles, X } from 'lucide-react';
 
-interface Room {
-  name: string;
-  slug: string;
-}
-
-interface ProductResult {
-  sku: string;
-  title: string;
-  price_aed: number;
-}
-
-interface FileResult {
+type Item = {
   id: string;
-  name: string;
-  visibility: string;
-}
+  group: string;
+  label: string;
+  hint?: string;
+  href?: string;
+  action?: () => void;
+  icon?: React.ComponentType<{ className?: string }>;
+};
 
-interface RecentItem {
-  type: 'room' | 'product';
-  slug: string;
-  name: string;
-  price?: number;
-}
-
-export function CommandBar({ rooms }: { rooms: Room[] }) {
+export function CommandBar() {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [products, setProducts] = useState<ProductResult[]>([]);
-  const [files, setFiles] = useState<FileResult[]>([]);
-  const [recent, setRecent] = useState<RecentItem[]>([]);
+  const [q, setQ] = useState('');
+  const [active, setActive] = useState(0);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('omnia-recent');
-    if (saved) setRecent(JSON.parse(saved));
-  }, []);
-
-  const addToRecent = (item: RecentItem) => {
-    const updated = [item, ...recent.filter((r) => r.slug !== item.slug)].slice(0, 5);
-    setRecent(updated);
-    localStorage.setItem('omnia-recent', JSON.stringify(updated));
-  };
-
-  useEffect(() => {
-    if (search.length < 2) {
-      setProducts([]);
-      setFiles([]);
-      return;
-    }
-    const fetchResults = async () => {
-      const [prodRes, fileRes] = await Promise.all([
-        supabase.from('products').select('sku, title, price_aed').ilike('title', `%${search}%`).limit(5),
-        supabase.from('drive_files').select('id, name, visibility').ilike('name', `%${search}%`).limit(3)
-      ]);
-      
-      if (prodRes.data) setProducts(prodRes.data);
-      if (fileRes.data) setFiles(fileRes.data);
-    };
-    fetchResults();
-  }, [search, supabase]);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setOpen((open) => !open);
+        setOpen((o) => !o);
+      } else if (e.key === 'Escape' && open) {
+        setOpen(false);
       }
     };
-    document.addEventListener('keydown', down);
-    return () => document.removeEventListener('keydown', down);
+    const onClick = (e: MouseEvent) => {
+      const t = (e.target as HTMLElement)?.closest('[data-command-open]');
+      if (t) {
+        e.preventDefault();
+        setOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('click', onClick);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('click', onClick);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setQ('');
+      setActive(0);
+      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  }, [open]);
+
+  const items = useMemo<Item[]>(() => {
+    const rooms = ROOMS.map<Item>((r) => ({
+      id: `room:${r.slug}`,
+      group: 'Jump to',
+      label: r.name,
+      hint: r.description,
+      href: `/${r.slug}`,
+      icon: r.icon,
+    }));
+    const actions: Item[] = [
+      {
+        id: 'action:new-draft',
+        group: 'Actions',
+        label: 'New draft order',
+        hint: 'Cross-store draft from a customer profile',
+        href: '/orders?new=1',
+        icon: Hash,
+      },
+      {
+        id: 'action:extract',
+        group: 'Actions',
+        label: 'Extract WhatsApp chat',
+        hint: 'Paste chat → structured order',
+        href: '/whatsapp-desk?extract=1',
+        icon: Sparkles,
+      },
+      {
+        id: 'action:product',
+        group: 'Actions',
+        label: 'Find a product',
+        hint: 'Across both stores',
+        href: '/inventory',
+        icon: Search,
+      },
+    ];
+    return [...actions, ...rooms];
   }, []);
 
-  const filteredRooms = rooms.filter((room) =>
-    room.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    if (!q) return items;
+    const n = q.toLowerCase();
+    return items.filter(
+      (i) => i.label.toLowerCase().includes(n) || i.hint?.toLowerCase().includes(n),
+    );
+  }, [q, items]);
+
+  const grouped = useMemo(() => {
+    const g: Record<string, Item[]> = {};
+    filtered.forEach((i) => {
+      g[i.group] = g[i.group] || [];
+      g[i.group].push(i);
+    });
+    return g;
+  }, [filtered]);
+
+  function go(item: Item) {
+    if (item.href) router.push(item.href);
+    if (item.action) item.action();
+    setOpen(false);
+  }
+
+  function onListKey(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive((a) => Math.min(filtered.length - 1, a + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((a) => Math.max(0, a - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filtered[active]) go(filtered[active]);
+    }
+  }
 
   if (!open) return null;
 
+  let runningIdx = -1;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-slate-900/50 backdrop-blur-sm" onClick={() => setOpen(false)}>
-      <div 
-        className="w-full max-w-xl bg-white rounded-xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in duration-200"
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        className="w-full max-w-xl panel-raised shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b">
+        <div className="flex items-center gap-2 px-4 h-12 border-b border-line-soft">
+          <Search className="w-4 h-4 text-ink-dim" />
           <input
-            autoFocus
-            placeholder="Search rooms or actions... (Esc to close)"
-            className="w-full text-lg outline-none"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            ref={inputRef}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setActive(0);
+            }}
+            onKeyDown={onListKey}
+            placeholder="Search rooms, products, customers, actions…"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-ink-dim text-ink"
           />
+          <button onClick={() => setOpen(false)} className="text-ink-dim hover:text-ink">
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <div className="max-h-96 overflow-y-auto p-2">
-          {filteredRooms.length > 0 && <div className="text-[10px] font-bold text-slate-400 uppercase px-3 py-2">Rooms</div>}
-          {filteredRooms.map((room) => (
-            <button
-              key={room.slug}
-              className="w-full text-left px-3 py-3 rounded-lg hover:bg-slate-100 flex items-center justify-between group"
-              onClick={() => {
-                addToRecent({ type: 'room', slug: room.slug, name: room.name });
-                router.push(`/${room.slug}`);
-                setOpen(false);
-              }}
-            >
-              <span className="font-medium text-slate-700">{room.name}</span>
-              <span className="text-xs text-slate-400 group-hover:text-slate-600">Enter Room ↵</span>
-            </button>
-          ))}
 
-          {products.length > 0 && (
-            <>
-              <div className="text-[10px] font-bold text-slate-400 uppercase px-3 py-2 mt-2">Products</div>
-              {products.map((product) => (
-                <button
-                  key={product.sku}
-                  className="w-full text-left px-3 py-3 rounded-lg hover:bg-slate-100 flex items-center justify-between group"
-                  onClick={() => {
-                    addToRecent({ type: 'product', slug: product.sku, name: product.title, price: product.price_aed });
-                    router.push(`/inventory?sku=${product.sku}`);
-                    setOpen(false);
-                  }}
-                >
-                  <div className="flex flex-col">
-                    <span className="font-medium text-slate-700 text-sm">{product.title}</span>
-                    <span className="text-[10px] text-slate-400 font-mono uppercase">{product.sku}</span>
-                  </div>
-                  <span className="text-xs font-bold text-slate-900">{product.price_aed} AED</span>
-                </button>
-              ))}
-            </>
-          )}
-
-          {files.length > 0 && (
-            <>
-              <div className="text-[10px] font-bold text-slate-400 uppercase px-3 py-2 mt-2">Files (The Safe)</div>
-              {files.map((file) => (
-                <button
-                  key={file.id}
-                  className="w-full text-left px-3 py-3 rounded-lg hover:bg-slate-100 flex items-center justify-between group"
-                  onClick={() => {
-                    router.push(`/drive-room?fileId=${file.id}`);
-                    setOpen(false);
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">📄</span>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-700 text-sm">{file.name}</span>
-                      <span className="text-[10px] text-slate-400 uppercase font-mono">{file.visibility} Access</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-blue-600 font-bold uppercase">Open Safe</span>
-                </button>
-              ))}
-            </>
-          )}
-
-          {!search && recent.length > 0 && (
-            <>
-              <div className="text-[10px] font-bold text-slate-400 uppercase px-3 py-2">Recently Viewed</div>
-              {recent.map((item) => (
-                <button
-                  key={item.slug}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 flex items-center justify-between group"
-                  onClick={() => {
-                    const path = item.type === 'room' ? `/${item.slug}` : `/inventory?sku=${item.slug}`;
-                    router.push(path);
-                    setOpen(false);
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">{item.type === 'room' ? '🚪' : '💎'}</span>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-700 text-sm">{item.name}</span>
-                      {item.type === 'product' && <span className="text-[10px] text-slate-400 font-mono uppercase">{item.slug}</span>}
-                    </div>
-                  </div>
-                  {item.price && <span className="text-xs text-slate-500">{item.price} AED</span>}
-                </button>
-              ))}
-            </>
-          )}
-
-          {search && filteredRooms.length === 0 && products.length === 0 && (
-            <div className="p-8 text-center text-slate-400 text-sm">
-              No results found for "{search}"
+        <div className="max-h-[60vh] overflow-y-auto py-2">
+          {Object.keys(grouped).length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-ink-dim">
+              No matches for &ldquo;{q}&rdquo;
             </div>
+          ) : (
+            Object.entries(grouped).map(([group, list]) => (
+              <div key={group} className="mb-2 last:mb-0">
+                <div className="label px-4 py-1.5">{group}</div>
+                {list.map((item) => {
+                  runningIdx++;
+                  const isActive = runningIdx === active;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => go(item)}
+                      onMouseEnter={() => setActive(runningIdx)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-4 h-10 text-left transition-colors',
+                        isActive
+                          ? 'bg-gold/10 text-ink'
+                          : 'text-ink-muted hover:bg-canvas-inset',
+                      )}
+                    >
+                      {Icon && (
+                        <Icon
+                          className={cn(
+                            'w-4 h-4 shrink-0',
+                            isActive ? 'text-gold' : 'text-ink-dim',
+                          )}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-ink truncate">{item.label}</div>
+                        {item.hint && (
+                          <div className="text-2xs text-ink-dim truncate">{item.hint}</div>
+                        )}
+                      </div>
+                      {isActive && <ArrowRight className="w-3.5 h-3.5 text-gold shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            ))
           )}
         </div>
-        <div className="p-3 bg-slate-50 border-t flex justify-between items-center text-[10px] text-slate-400 font-medium">
-          <div className="flex gap-4">
-            <span><kbd className="border px-1 rounded bg-white">↑↓</kbd> Navigate</span>
-            <span><kbd className="border px-1 rounded bg-white">Enter</kbd> Select</span>
+
+        <div className="flex items-center justify-between px-4 h-9 border-t border-line-soft text-2xs text-ink-dim">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd> navigate
+            </span>
+            <span className="flex items-center gap-1">
+              <Kbd>↵</Kbd> open
+            </span>
+            <span className="flex items-center gap-1">
+              <Kbd>esc</Kbd> close
+            </span>
           </div>
-          <span>OmniaHouse QuickSearch</span>
+          <span className="font-medium text-gold">OmniaHouse</span>
         </div>
       </div>
     </div>
