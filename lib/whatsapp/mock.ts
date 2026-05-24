@@ -2,7 +2,9 @@ import type {
   Conversation, CustomerCard, Extraction, ReplyOptimization, WritingCheck,
   PaymentVerification, Magazine, Vibes, GhostBrowse, CustomerHistory, WalletState,
 } from './types';
+import type { ProductShare } from './thread';
 import { detectCountry, routeForOrder } from './routing';
+import { getCatalogue } from '@/lib/inventory/mock';
 
 // ─── Conversations ─────────────────────────────────────────────────────────
 
@@ -479,4 +481,39 @@ export function mockMagazine(customerName: string): Magazine {
     cashback_code: 'AISHA-LE-130',
     generated_at: '2026-05-24 14:35',
   };
+}
+
+/**
+ * Inventory search inside the conversation.
+ * Pulls from the unified catalogue (lib/inventory/mock.ts) — same source
+ * the Inventory room uses. In real mode this hits the `products` table
+ * with org-scoped RLS, exactly like Gemini's management room did.
+ */
+export function searchProducts(query: string, limit = 6): ProductShare[] {
+  const catalogue = getCatalogue();
+  const q = query.toLowerCase().trim();
+  const filtered = !q
+    ? catalogue
+    : catalogue.filter(
+        (p) =>
+          p.display_title.toLowerCase().includes(q) ||
+          p.master_sku.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          p.material.toLowerCase().includes(q),
+      );
+  return filtered.slice(0, limit).map((p) => ({
+    sku: p.master_sku,
+    title: p.display_title,
+    category: p.category,
+    material: p.material,
+    image_hint: p.image_hint,
+    shopify_price_aed: p.shopify_price_aed,
+    woocommerce_price_aed: p.woocommerce_price_aed,
+    shopify_url: p.shopify_url,
+    woocommerce_url: p.woocommerce_url,
+    in_stock_anywhere:
+      (p.shopify_qty !== null && p.shopify_qty > 0) ||
+      (p.woocommerce_qty !== null && p.woocommerce_qty > 0),
+    is_limited_edition: p.is_limited_edition,
+  }));
 }

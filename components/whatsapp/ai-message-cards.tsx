@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle, Package, ExternalLink, Crown, Send } from 'lucide-react';
 import { routeForOrder } from '@/lib/whatsapp/routing';
 import { formatAED } from '@/lib/utils';
 import type { Extraction, ReplyOptimization, PaymentVerification, Magazine, CustomerCard } from '@/lib/whatsapp/types';
+import type { ProductShare } from '@/lib/whatsapp/thread';
 
 /**
  * AI cards — comfortable mature sizing, single sans-serif, no fashion.
@@ -223,11 +224,12 @@ export function ShortcutCard({
 
 // ─── System note ───────────────────────────────────────────────────────────
 
-export function SystemNote({ text, tone = 'info', at }: { text: string; tone?: 'info' | 'warn' | 'good'; at: string }) {
+export function SystemNote({ text, tone = 'info', at }: { text: string; tone?: 'info' | 'warn' | 'good' | 'bad'; at: string }) {
   const tones = {
     info: 'text-zinc-400 bg-zinc-800/60 border-zinc-700',
     warn: 'text-amber-300 bg-amber-500/10 border-amber-500/30',
     good: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30',
+    bad:  'text-rose-300 bg-rose-500/10 border-rose-500/30',
   };
   return (
     <div className={`px-3 py-1 rounded-full text-xs border ${tones[tone]}`}>
@@ -235,6 +237,108 @@ export function SystemNote({ text, tone = 'info', at }: { text: string; tone?: '
       {text}
     </div>
   );
+}
+
+// ─── Product share ─────────────────────────────────────────────────────────
+
+export function ProductShareCard({
+  data, at, onSendToCustomer, onDismiss,
+}: {
+  data: ProductShare;
+  at: string;
+  onSendToCustomer?: (text: string) => void;
+  onDismiss?: () => void;
+}) {
+  const url = data.shopify_url || data.woocommerce_url || '';
+  const lowestPrice = [data.shopify_price_aed, data.woocommerce_price_aed]
+    .filter((x): x is number => x !== null)
+    .sort((a, b) => a - b)[0];
+  const waMessage = [data.title, lowestPrice ? formatAED(lowestPrice) : '', url].filter(Boolean).join('\n');
+
+  return (
+    <Shell tone="blue" icon={Package} title="Product" at={at} onDismiss={onDismiss}>
+      <div className="flex gap-3 mb-3">
+        <div className={`w-20 h-20 rounded-md shrink-0 relative overflow-hidden bg-gradient-to-br ${productGradient(data.image_hint)}`}>
+          {data.is_limited_edition && (
+            <span className="absolute top-1 left-1 px-1.5 h-4 rounded bg-zinc-900/80 text-amber-300 text-2xs flex items-center gap-0.5">
+              <Crown className="w-2.5 h-2.5" /> LE
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-medium text-zinc-100 leading-tight">{data.title}</div>
+          <div className="text-xs text-zinc-500 font-mono mt-0.5">{data.sku}</div>
+          <div className="text-xs text-zinc-400 mt-1">{data.category} · {data.material}</div>
+          {!data.in_stock_anywhere && (
+            <div className="text-xs text-rose-300 mt-1">Out of stock on both stores</div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <ProdPriceCell store=".ae" price={data.shopify_price_aed} />
+        <ProdPriceCell store=".com" price={data.woocommerce_price_aed} />
+      </div>
+
+      <div className="flex items-center gap-2 pt-3 border-t border-zinc-700">
+        <button
+          onClick={() => onSendToCustomer?.(waMessage)}
+          className="flex-1 h-9 px-3 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 flex items-center justify-center gap-1.5"
+        >
+          <Send className="w-3.5 h-3.5" /> Send to customer
+        </button>
+        <CopyBtn text={waMessage} label="Copy" />
+        {url && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-9 px-3 rounded-md bg-zinc-800 text-zinc-100 text-sm hover:bg-zinc-700 border border-zinc-700 flex items-center gap-1.5"
+            title="Open product page"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
+      </div>
+    </Shell>
+  );
+}
+
+function ProdPriceCell({ store, price }: { store: string; price: number | null }) {
+  if (price === null) {
+    return (
+      <div className="px-2.5 py-2 rounded border border-dashed border-zinc-700 text-center">
+        <div className="text-xs uppercase tracking-wider text-zinc-600">{store}</div>
+        <div className="text-sm text-zinc-600">—</div>
+      </div>
+    );
+  }
+  return (
+    <div className="px-2.5 py-2 rounded border border-zinc-700 bg-zinc-900 text-center">
+      <div className="text-xs uppercase tracking-wider text-zinc-500">{store}</div>
+      <div className="text-sm text-zinc-100 numeric">{formatAED(price)}</div>
+    </div>
+  );
+}
+
+function productGradient(hint?: string): string {
+  const map: Record<string, string> = {
+    'silver-crescent': 'from-slate-400 via-zinc-300 to-slate-500',
+    'rose-moonstone': 'from-rose-300 via-amber-200 to-rose-400',
+    'blue-sapphire': 'from-blue-500 via-indigo-400 to-blue-700',
+    'white-pearl': 'from-zinc-100 via-zinc-200 to-zinc-300',
+    'green-emerald': 'from-emerald-500 via-emerald-400 to-emerald-700',
+    'red-ruby': 'from-rose-500 via-red-500 to-rose-700',
+    'opal-iridescent': 'from-indigo-200 via-pink-200 to-cyan-200',
+    'gold-celestial': 'from-amber-300 via-yellow-500 to-amber-600',
+    'bridal-gold': 'from-amber-200 via-yellow-300 to-amber-500',
+    'diamond-tennis': 'from-slate-200 via-white to-blue-100',
+    'silver-anklet': 'from-zinc-300 via-slate-200 to-zinc-400',
+    'founder-gold': 'from-yellow-600 via-amber-700 to-yellow-900',
+    'choker-platinum': 'from-slate-300 via-slate-200 to-slate-500',
+    'heritage-gold': 'from-amber-500 via-amber-700 to-yellow-900',
+  };
+  return map[hint || ''] || 'from-zinc-700 via-zinc-800 to-zinc-700';
 }
 
 // ─── Shared ────────────────────────────────────────────────────────────────

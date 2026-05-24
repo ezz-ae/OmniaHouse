@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
-import { mockWritingCheck } from '@/lib/whatsapp/mock';
-import { Sparkles, Send, Paperclip, Loader2, X } from 'lucide-react';
+import { mockWritingCheck, searchProducts } from '@/lib/whatsapp/mock';
+import { Sparkles, Send, Paperclip, Loader2, X, Package, Crown } from 'lucide-react';
 import type { WritingCheck } from '@/lib/whatsapp/types';
+import type { ProductShare } from '@/lib/whatsapp/thread';
+import { formatAED } from '@/lib/utils';
 
 export type SlashAction = 'extract' | 'optimize' | 'verify' | 'magazine';
 
@@ -19,11 +21,13 @@ export function MessengerCompose({
   onSend,
   onSlashAction,
   onShortcutPick,
+  onShareProduct,
   busy,
 }: {
   onSend: (text: string) => void;
   onSlashAction: (action: SlashAction) => void;
   onShortcutPick: (trigger_key: string) => void;
+  onShareProduct?: (p: ProductShare) => void;
   busy?: SlashAction | null;
 }) {
   const [text, setText] = useState('');
@@ -66,26 +70,64 @@ export function MessengerCompose({
   ], []);
 
   type Row = { kind: 'action'; id: SlashAction; label: string; hint: string }
-           | { kind: 'shortcut'; id: string; label: string; hint: string };
+           | { kind: 'shortcut'; id: string; label: string; hint: string }
+           | { kind: 'product'; id: string; product: ProductShare };
+
+  // Product search mode — triggered by /product or /find
+  const productMode = useMemo(() => {
+    const m = paletteQuery.match(/^(product|find)\s*(.*)$/i);
+    return m ? m[2].trim() : null;
+  }, [paletteQuery]);
 
   const rows: Row[] = useMemo(() => {
+    // When /product or /find: show only product results
+    if (productMode !== null) {
+      const products = searchProducts(productMode, 12);
+      return products.map((p) => ({ kind: 'product' as const, id: p.sku, product: p }));
+    }
     const q = paletteQuery.toLowerCase();
     const a: Row[] = SLASH_ACTIONS
       .filter((x) => !q || x.id.includes(q))
       .map((x) => ({ kind: 'action', id: x.id, label: x.label, hint: x.hint }));
+    // Add a "/product" entry to advertise the feature
+    const productEntry: Row[] = (!q || 'product'.includes(q) || 'find'.includes(q))
+      ? [{ kind: 'action' as any, id: 'product' as any, label: '/product', hint: 'Search inventory and share a product in the chat' } as Row]
+      : [];
     const s: Row[] = SHORTCUTS
       .filter((sc) => !q || sc.trigger_key.includes(q) || sc.content_en.toLowerCase().includes(q))
       .slice(0, q ? 16 : 8)
       .map((sc) => ({ kind: 'shortcut', id: sc.id, label: sc.trigger_key, hint: sc.content_en }));
-    return [...a, ...s];
-  }, [paletteQuery, SLASH_ACTIONS]);
+    return [...a, ...productEntry, ...s];
+  }, [paletteQuery, productMode, SLASH_ACTIONS]);
 
-  function clearSlash() { setText((prev) => prev.replace(/(\/[a-z0-9_-]*)$/, '')); }
+  function clearSlash() { setText((prev) => prev.replace(/(\/[a-z0-9_-]*(?:\s.*)?)$/, '')); }
   function closePalette() { setPaletteOpen(false); setPaletteQuery(''); setPaletteIdx(0); }
+  function enterProductMode() {
+    setText((prev) => {
+      const cleaned = prev.replace(/(\/[a-z0-9_-]*)$/, '');
+      return cleaned + '/product ';
+    });
+    setPaletteOpen(true);
+    setPaletteQuery('product ');
+    setPaletteIdx(0);
+    ref.current?.focus();
+  }
   function chooseRow(r: Row) {
-    clearSlash(); closePalette();
-    if (r.kind === 'action') onSlashAction(r.id);
-    else onShortcutPick(r.label);
+    if (r.kind === 'action') {
+      // Special case: /product enters product-search mode rather than firing an AI action
+      if ((r.id as any) === 'product') {
+        enterProductMode();
+        return;
+      }
+      clearSlash(); closePalette();
+      onSlashAction(r.id);
+    } else if (r.kind === 'shortcut') {
+      clearSlash(); closePalette();
+      onShortcutPick(r.label);
+    } else if (r.kind === 'product') {
+      clearSlash(); closePalette();
+      onShareProduct?.(r.product);
+    }
     ref.current?.focus();
   }
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -124,8 +166,31 @@ export function MessengerCompose({
           </div>
           <ul>
             {rows.map((r, i) => {
-              const isAction = r.kind === 'action';
               const isActive = i === paletteIdx;
+              if (r.kind === 'product') {
+                const p = r.product;
+                return (
+                  <li key={`product-${p.sku}`}>
+                    <button
+                      onClick={() => chooseRow(r)}
+                      onMouseEnter={() => setPaletteIdx(i)}
+                      className={`w-full text-left px-4 py-2 flex items-center gap-3 transition-colors ${isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/70'}`}
+                    >
+                      <Package className="w-4 h-4 text-blue-400 shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="text-sm text-zinc-100 block truncate">{p.title}</span>
+                        <span className="text-2xs text-zinc-500 font-mono">{p.sku} · {p.category}</span>
+                      </span>
+                      <span className="text-xs text-zinc-300 numeric shrink-0">
+                        {p.shopify_price_aed ? formatAED(p.shopify_price_aed) : p.woocommerce_price_aed ? formatAED(p.woocommerce_price_aed) : '—'}
+                      </span>
+                      {p.is_limited_edition && <Crown className="w-3 h-3 text-amber-400 shrink-0" />}
+                      {!p.in_stock_anywhere && <span className="text-2xs text-rose-400 shrink-0">out</span>}
+                    </button>
+                  </li>
+                );
+              }
+              const isAction = r.kind === 'action';
               return (
                 <li key={`${r.kind}-${r.id}`}>
                   <button

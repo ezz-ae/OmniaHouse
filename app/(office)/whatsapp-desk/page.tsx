@@ -11,7 +11,7 @@ import {
   getConversations, getCustomerCard, mockExtract, mockOptimizeReply,
   mockVerifyPayment, mockMagazine,
 } from '@/lib/whatsapp/mock';
-import { messagesToTurns, type Turn } from '@/lib/whatsapp/thread';
+import { messagesToTurns, type Turn, type ProductShare } from '@/lib/whatsapp/thread';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
 import { formatAED } from '@/lib/utils';
 import { Info, Wallet } from 'lucide-react';
@@ -119,7 +119,35 @@ export default function WhatsAppDeskPage() {
   }
 
   function pushDraft(target: 'shopify' | 'woocommerce') {
-    addTurn({ kind: 'system', at: now(), data: { text: `Draft pushed to ${target === 'shopify' ? 'omniastores.ae' : 'omniastores.com'}`, tone: 'good' } });
+    const store = target === 'shopify' ? 'omniastores.ae' : 'omniastores.com';
+    addTurn({ kind: 'system', at: now(), data: { text: `Draft pushed to ${store} · order_submission created`, tone: 'good' } });
+
+    // Auto-share to Finance Room when payment proof exists in the chat —
+    // because the order_submissions row will need a payment check before
+    // fulfillment. Mirrors what the Implementation Book §15 + the verify
+    // prompt assume: any flagged payment surfaces to Finance automatically.
+    const chatExtras = extraTurns[active.id] || [];
+    const verifyTurn = chatExtras.find((t) => t.kind === 'verify') as any;
+    const hasMediaInChat = active.messages.some((m) => m.media);
+    if (verifyTurn || hasMediaInChat) {
+      const action = verifyTurn?.data?.action as string | undefined;
+      const tone: 'good' | 'warn' | 'bad' =
+        action === 'reject_as_fraud' ? 'bad'
+        : action === 'flag_for_finance' ? 'warn'
+        : 'info' as any;
+      const text = action === 'reject_as_fraud'
+        ? 'Auto-flagged to Finance — payment proof rejected as fraud. Hold fulfillment.'
+        : action === 'flag_for_finance'
+          ? 'Auto-shared to Finance for payment review before fulfillment.'
+          : action === 'approve'
+            ? 'Shared to Finance — payment proof verified, ready to settle.'
+            : 'Shared to Finance — payment proof in chat, needs review.';
+      addTurn({ kind: 'system', at: now(), data: { text, tone: tone as any } });
+    }
+  }
+
+  function shareProduct(p: ProductShare) {
+    addTurn({ kind: 'product_share', at: now(), data: p });
   }
 
   function useShortcutOutput(lang: 'en' | 'ar' | 'both', en: string, ar: string) {
@@ -150,6 +178,7 @@ export default function WhatsAppDeskPage() {
               onSend={sendMessage}
               onSlashAction={runAction}
               onShortcutPick={runShortcut}
+              onShareProduct={shareProduct}
               onVerifyMedia={verifyMedia}
               onDismissTurn={dismissTurn}
               onPushDraft={pushDraft}
@@ -185,6 +214,7 @@ function ChatSection(props: {
   onSend: (text: string) => void;
   onSlashAction: (a: SlashAction) => void;
   onShortcutPick: (t: string) => void;
+  onShareProduct: (p: ProductShare) => void;
   onVerifyMedia: (m: Message) => void;
   onDismissTurn: (idx: number) => void;
   onPushDraft: (target: 'shopify' | 'woocommerce') => void;
@@ -223,11 +253,13 @@ function ChatSection(props: {
           onDismissTurn={props.onDismissTurn}
           onPushDraft={props.onPushDraft}
           onUseShortcut={props.onUseShortcut}
+          onSendProduct={props.onSend}
         />
         <MessengerCompose
           onSend={props.onSend}
           onSlashAction={props.onSlashAction}
           onShortcutPick={props.onShortcutPick}
+          onShareProduct={props.onShareProduct}
           busy={props.busy}
         />
       </div>

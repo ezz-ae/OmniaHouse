@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Image as ImageIcon, FileText, AudioLines, ShieldCheck, ShieldAlert } from 'lucide-react';
 import {
   ExtractCard, OptimizeCard, VerifyCard, MagazineCard, ShortcutCard, SystemNote,
+  ProductShareCard,
 } from './ai-message-cards';
 import type { Message } from '@/lib/whatsapp/types';
 import type { Turn } from '@/lib/whatsapp/thread';
@@ -22,6 +23,7 @@ export function ConversationThread({
   onPushDraft,
   onApplyOptimization,
   onUseShortcut,
+  onSendProduct,
 }: {
   turns: Turn[];
   card: CustomerCard;
@@ -30,6 +32,7 @@ export function ConversationThread({
   onPushDraft?: (target: 'shopify' | 'woocommerce') => void;
   onApplyOptimization?: () => void;
   onUseShortcut?: (lang: 'en' | 'ar' | 'both', en: string, ar: string) => void;
+  onSendProduct?: (text: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -74,6 +77,12 @@ export function ConversationThread({
                   return (
                     <div key={i} className="pt-4">
                       <MagazineCard data={t.data} at={t.at} onDismiss={dismiss} />
+                    </div>
+                  );
+                case 'product_share':
+                  return (
+                    <div key={i} className="pt-4">
+                      <ProductShareCard data={t.data} at={t.at} onDismiss={dismiss} onSendToCustomer={onSendProduct} />
                     </div>
                   );
                 case 'shortcut':
