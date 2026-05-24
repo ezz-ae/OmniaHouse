@@ -1,0 +1,956 @@
+schemaVersion: 3
+meta:
+  sourceVersionId: 019e56aa-f468-7000-81aa-94c135fd23c9 # DO NOT CHANGE - Hex uses this to match up project versions when reimporting the file
+  description: ""
+  projectId: 019e5685-6160-7000-94cb-3ab20544dd05 # DO NOT CHANGE - Unique ID of the project from which this file was generated
+  title: OmniaStores inventory parity
+  timezone: null
+  appTheme: SYS_PREF
+  codeLanguage: PYTHON
+  status: null
+  categories: []
+  castDecimalsDefault: true
+  hexType: PROJECT
+  allowExecutionReordering: true
+  prerunApp: false
+  autoRerunApp: true
+  cachePublishedAppState: true
+  logicQueryCacheTimeout: null
+  publishedQueryCacheTimeout: null
+  refreshStalePublishedApp: true
+projectAssets:
+  dataConnections: []
+  envVars: []
+  secrets: []
+sharedAssets:
+  secrets: []
+  vcsPackages: []
+  dataConnections:
+    - dataConnectionId: 019c749a-3044-7557-bcc6-c7febb4223db # [Demo] Hex Public Data (snowflake)
+  externalFileIntegrations: []
+cells:
+  - cellType: COLLAPSIBLE
+    cellId: 019e5689-cfb4-7000-8705-0d28240a329d # DO NOT CHANGE - Hex uses this to match up cells when reimporting the file, and detect any changes to existing cells
+    cellLabel: OmniaStores inventory scrape & parity
+    config:
+      labelStyle: AUTO
+      cells:
+        - cellType: CODE
+          cellId: 019e5689-fe7c-7000-8fa8-51918531316e
+          cellLabel: Shopify scrape
+          config:
+            source: |-
+              import time
+              import requests
+              import pandas as pd
+              from datetime import datetime, timezone
+
+              SHOPIFY_BASE_URL = "https://omniastores.ae"
+              SHOPIFY_PRODUCTS_URL = f"{SHOPIFY_BASE_URL}/products.json"
+              HEADERS = {"User-Agent": "OmniaHouse internal sync (+read-only catalogue parity)"}
+
+              shopify_rows = []
+              shopify_errors = []
+              page = 1
+
+              while True:
+                  try:
+                      response = requests.get(
+                          SHOPIFY_PRODUCTS_URL,
+                          params={"limit": 250, "page": page},
+                          headers=HEADERS,
+                          timeout=30,
+                      )
+                      response.raise_for_status()
+                      products = response.json().get("products", [])
+                  except Exception as exc:
+                      shopify_errors.append({"page": page, "error": str(exc)})
+                      break
+
+                  if not products:
+                      break
+
+                  for product in products:
+                      images = product.get("images") or []
+                      variants = product.get("variants") or [{}]
+                      for variant in variants:
+                          shopify_rows.append(
+                              {
+                                  "source": "shopify",
+                                  "source_id": product.get("id"),
+                                  "handle": product.get("handle"),
+                                  "title": product.get("title"),
+                                  "vendor": product.get("vendor"),
+                                  "product_type": product.get("product_type"),
+                                  "tags": product.get("tags"),
+                                  "created_at": product.get("created_at"),
+                                  "updated_at": product.get("updated_at"),
+                                  "published_at": product.get("published_at"),
+                                  "variant_id": variant.get("id"),
+                                  "sku": variant.get("sku"),
+                                  "variant_title": variant.get("title"),
+                                  "price_aed": pd.to_numeric(variant.get("price"), errors="coerce"),
+                                  "compare_at_price_aed": pd.to_numeric(variant.get("compare_at_price"), errors="coerce"),
+                                  "available": variant.get("available"),
+                                  "option1": variant.get("option1"),
+                                  "option2": variant.get("option2"),
+                                  "option3": variant.get("option3"),
+                                  "featured_image_url": images[0].get("src") if images else None,
+                                  "image_count": len(images),
+                                  "permalink": f"{SHOPIFY_BASE_URL}/products/{product.get('handle')}",
+                              }
+                          )
+
+                  page += 1
+                  time.sleep(0.5)
+
+              df_shopify = pd.DataFrame(shopify_rows)
+              df_shopify_status = pd.DataFrame(
+                  [{"source": "shopify", "rows": len(df_shopify), "pages_fetched": max(page - 1, 0), "errors": len(shopify_errors)}]
+              )
+              df_shopify.head()
+        - cellType: CODE
+          cellId: 019e568a-55c1-7000-8e38-76b5aa49d7fd
+          cellLabel: WooCommerce scrape
+          config:
+            source: |-
+              import time
+              import requests
+              import pandas as pd
+
+              WOOCOMMERCE_BASE_URL = "https://omniastores.com"
+              WOOCOMMERCE_PRODUCTS_URL = f"{WOOCOMMERCE_BASE_URL}/wp-json/wc/store/v1/products"
+              HEADERS = {"User-Agent": "OmniaHouse internal sync (+read-only catalogue parity)"}
+
+
+              def parse_wc_price(prices, field):
+                  if not isinstance(prices, dict):
+                      return pd.NA
+                  value = prices.get(field)
+                  if value in (None, ""):
+                      return pd.NA
+                  minor_unit = pd.to_numeric(prices.get("currency_minor_unit", 2), errors="coerce")
+                  if pd.isna(minor_unit):
+                      minor_unit = 2
+                  return pd.to_numeric(value, errors="coerce") / (10 ** int(minor_unit))
+
+
+              woocommerce_rows = []
+              woocommerce_errors = []
+              page = 1
+
+              while True:
+                  try:
+                      response = requests.get(
+                          WOOCOMMERCE_PRODUCTS_URL,
+                          params={"per_page": 100, "page": page},
+                          headers=HEADERS,
+                          timeout=30,
+                      )
+                      if response.status_code in (400, 404) and page > 1:
+                          break
+                      response.raise_for_status()
+                      products = response.json()
+                  except Exception as exc:
+                      woocommerce_errors.append({"page": page, "error": str(exc)})
+                      break
+
+                  if not products:
+                      break
+
+                  for product in products:
+                      prices = product.get("prices") or {}
+                      categories = product.get("categories") or []
+                      tags = product.get("tags") or []
+                      images = product.get("images") or []
+                      woocommerce_rows.append(
+                          {
+                              "source": "woocommerce",
+                              "source_id": product.get("id"),
+                              "slug": product.get("slug"),
+                              "title": product.get("name"),
+                              "sku": product.get("sku"),
+                              "price_aed": parse_wc_price(prices, "price"),
+                              "regular_price_aed": parse_wc_price(prices, "regular_price"),
+                              "sale_price_aed": parse_wc_price(prices, "sale_price") if product.get("on_sale") else pd.NA,
+                              "on_sale": product.get("on_sale"),
+                              "is_in_stock": product.get("is_in_stock"),
+                              "stock_status": product.get("stock_status"),
+                              "stock_quantity": product.get("stock_quantity"),
+                              "categories": ", ".join([str(c.get("name")) for c in categories if c.get("name")]),
+                              "tags": ", ".join([str(t.get("name")) for t in tags if t.get("name")]),
+                              "featured_image_url": images[0].get("src") if images else None,
+                              "image_count": len(images),
+                              "permalink": product.get("permalink"),
+                              "created_at": product.get("date_created") or product.get("date_created_gmt"),
+                              "modified_at": product.get("date_modified") or product.get("date_modified_gmt"),
+                          }
+                      )
+
+                  page += 1
+                  time.sleep(0.5)
+
+              df_woocommerce = pd.DataFrame(woocommerce_rows)
+              df_woocommerce_status = pd.DataFrame(
+                  [{"source": "woocommerce", "rows": len(df_woocommerce), "pages_fetched": max(page - 1, 0), "errors": len(woocommerce_errors)}]
+              )
+              df_woocommerce.head()
+        - cellType: CODE
+          cellId: 019e568b-c45b-7000-92ff-ec809802a281
+          cellLabel: Normalize unified catalogue
+          config:
+            source: |-
+              import re
+              import html
+              import pandas as pd
+              from datetime import datetime, timezone
+
+              COLOR_SUFFIX_RE = re.compile(r"\s+(white|red|pink|gold|green|blue|silver|purple|yellow|rose gold|multicolor|moonstone|ruby|emerald|sapphire)$", re.I)
+              TITLE_SPLIT_RE = re.compile(r"\s+[-–—]\s+")
+
+
+              def clean_master_title(title):
+                  if pd.isna(title):
+                      return pd.NA
+                  value = html.unescape(str(title)).lower().replace("\xa0", " ").strip()
+                  value = value.replace("&", " and ")
+                  value = re.sub(r"\b92\.5\b", "925", value)
+                  value = re.sub(r"^omnia\s+", "", value)
+                  value = TITLE_SPLIT_RE.split(value, maxsplit=1)[0]
+                  value = COLOR_SUFFIX_RE.sub("", value).strip()
+                  value = re.sub(r"\s+", " ", value)
+                  return value
+
+
+              def first_csv_value(value):
+                  if isinstance(value, list):
+                      return str(value[0]).strip() if value else pd.NA
+                  if pd.isna(value) or value == "":
+                      return pd.NA
+                  return str(value).split(",")[0].strip()
+
+
+              last_synced_at = datetime.now(timezone.utc).isoformat()
+
+              shopify_unified = pd.DataFrame()
+              if "df_shopify" in globals() and not df_shopify.empty:
+                  shopify_unified = pd.DataFrame(
+                      {
+                          "source": "shopify",
+                          "source_id": df_shopify["source_id"].astype("string"),
+                          "sku": df_shopify["sku"].fillna("").astype("string").str.strip(),
+                          "master_title": df_shopify["title"].map(clean_master_title),
+                          "display_title": df_shopify["title"],
+                          "price_aed": pd.to_numeric(df_shopify["price_aed"], errors="coerce"),
+                          "regular_price_aed": pd.to_numeric(df_shopify["compare_at_price_aed"], errors="coerce").where(
+                              pd.to_numeric(df_shopify["compare_at_price_aed"], errors="coerce") > 0,
+                              pd.to_numeric(df_shopify["price_aed"], errors="coerce"),
+                          ),
+                          "sale_price_aed": pd.to_numeric(df_shopify["price_aed"], errors="coerce").where(
+                              pd.to_numeric(df_shopify["compare_at_price_aed"], errors="coerce") > pd.to_numeric(df_shopify["price_aed"], errors="coerce")
+                          ),
+                          "on_sale": pd.to_numeric(df_shopify["compare_at_price_aed"], errors="coerce") > pd.to_numeric(df_shopify["price_aed"], errors="coerce"),
+                          "in_stock": df_shopify["available"].fillna(False).astype(bool),
+                          "stock_qty": pd.NA,
+                          "category_path": df_shopify["tags"].map(first_csv_value),
+                          "permalink": df_shopify["permalink"],
+                          "featured_image_url": df_shopify["featured_image_url"],
+                          "last_synced_at": last_synced_at,
+                      }
+                  )
+
+              woocommerce_unified = pd.DataFrame()
+              if "df_woocommerce" in globals() and not df_woocommerce.empty:
+                  woocommerce_in_stock = df_woocommerce.get("is_in_stock", pd.Series([pd.NA] * len(df_woocommerce))).fillna(
+                      df_woocommerce.get("stock_status", pd.Series([pd.NA] * len(df_woocommerce))).eq("instock")
+                  )
+                  woocommerce_unified = pd.DataFrame(
+                      {
+                          "source": "woocommerce",
+                          "source_id": df_woocommerce["source_id"].astype("string"),
+                          "sku": df_woocommerce["sku"].fillna("").astype("string").str.strip(),
+                          "master_title": df_woocommerce["title"].map(clean_master_title),
+                          "display_title": df_woocommerce["title"],
+                          "price_aed": pd.to_numeric(df_woocommerce["price_aed"], errors="coerce"),
+                          "regular_price_aed": pd.to_numeric(df_woocommerce["regular_price_aed"], errors="coerce"),
+                          "sale_price_aed": pd.to_numeric(df_woocommerce["sale_price_aed"], errors="coerce"),
+                          "on_sale": df_woocommerce["on_sale"].fillna(False).astype(bool),
+                          "in_stock": woocommerce_in_stock.fillna(False).astype(bool),
+                          "stock_qty": df_woocommerce["stock_quantity"],
+                          "category_path": df_woocommerce["categories"].map(first_csv_value),
+                          "permalink": df_woocommerce["permalink"],
+                          "featured_image_url": df_woocommerce["featured_image_url"],
+                          "last_synced_at": last_synced_at,
+                      }
+                  )
+
+              df_unified = pd.concat([shopify_unified, woocommerce_unified], ignore_index=True)
+              df_unified["normalized_sku"] = df_unified["sku"].fillna("").astype("string").str.lower().str.strip()
+              skus_by_source = df_unified[df_unified["normalized_sku"].ne("")].groupby("normalized_sku")["source"].nunique()
+              cross_store_skus = set(skus_by_source[skus_by_source.gt(1)].index)
+              df_unified["match_key"] = "title:" + df_unified["master_title"].astype("string")
+              df_unified.loc[df_unified["normalized_sku"].isin(cross_store_skus), "match_key"] = "sku:" + df_unified.loc[df_unified["normalized_sku"].isin(cross_store_skus), "normalized_sku"]
+
+              df_unified_summary = pd.concat(
+                  [
+                      pd.DataFrame([{"metric": "total_rows", "value": len(df_unified)}]),
+                      df_unified.groupby("source", dropna=False).size().reset_index(name="value").assign(metric=lambda d: "rows_" + d["source"].astype(str))[["metric", "value"]],
+                      df_unified.groupby("source", dropna=False)["master_title"].nunique().reset_index(name="value").assign(metric=lambda d: "distinct_master_titles_" + d["source"].astype(str))[["metric", "value"]],
+                  ],
+                  ignore_index=True,
+              )
+              df_unified_summary
+        - cellType: CODE
+          cellId: 019e568b-f9ab-7000-8106-2fe78986753f
+          cellLabel: Parity diff
+          config:
+            source: |-
+              import numpy as np
+              import pandas as pd
+
+              source_rollup = (
+                  df_unified.dropna(subset=["match_key"])
+                  .groupby(["match_key", "source"], dropna=False)
+                  .agg(
+                      master_title=("master_title", "first"),
+                      display_title=("display_title", "first"),
+                      price_aed=("price_aed", "min"),
+                      in_stock=("in_stock", "max"),
+                      permalink=("permalink", "first"),
+                      sku=("sku", "first"),
+                  )
+                  .reset_index()
+              )
+
+              shopify_side = source_rollup[source_rollup["source"].eq("shopify")].rename(
+                  columns={
+                      "price_aed": "shopify_price_aed",
+                      "in_stock": "shopify_in_stock",
+                      "permalink": "shopify_permalink",
+                      "display_title": "shopify_display_title",
+                  }
+              )
+              woocommerce_side = source_rollup[source_rollup["source"].eq("woocommerce")].rename(
+                  columns={
+                      "price_aed": "woocommerce_price_aed",
+                      "in_stock": "woocommerce_in_stock",
+                      "permalink": "woocommerce_permalink",
+                      "display_title": "woocommerce_display_title",
+                  }
+              )
+
+              df_parity = shopify_side.merge(
+                  woocommerce_side,
+                  on="match_key",
+                  how="outer",
+                  suffixes=("_shopify", "_woocommerce"),
+              )
+
+              df_parity["master_title"] = df_parity["master_title_shopify"].combine_first(df_parity["master_title_woocommerce"])
+              df_parity["on_shopify"] = df_parity["shopify_price_aed"].notna()
+              df_parity["on_woocommerce"] = df_parity["woocommerce_price_aed"].notna()
+              df_parity["price_delta_pct"] = np.where(
+                  df_parity["on_shopify"] & df_parity["on_woocommerce"] & df_parity["woocommerce_price_aed"].ne(0),
+                  (df_parity["shopify_price_aed"] - df_parity["woocommerce_price_aed"]) / df_parity["woocommerce_price_aed"] * 100,
+                  np.nan,
+              )
+
+              df_parity["parity_status"] = np.select(
+                  [
+                      df_parity["on_shopify"] & ~df_parity["on_woocommerce"],
+                      ~df_parity["on_shopify"] & df_parity["on_woocommerce"],
+                      df_parity["on_shopify"] & df_parity["on_woocommerce"] & df_parity["price_delta_pct"].abs().le(1),
+                      df_parity["on_shopify"] & df_parity["on_woocommerce"] & df_parity["price_delta_pct"].abs().gt(1),
+                  ],
+                  ["shopify_only", "woocommerce_only", "both_match", "both_price_drift"],
+                  default="unclassified",
+              )
+
+              df_parity = df_parity[
+                  [
+                      "master_title",
+                      "match_key",
+                      "on_shopify",
+                      "on_woocommerce",
+                      "shopify_price_aed",
+                      "woocommerce_price_aed",
+                      "price_delta_pct",
+                      "shopify_in_stock",
+                      "woocommerce_in_stock",
+                      "parity_status",
+                      "shopify_permalink",
+                      "woocommerce_permalink",
+                      "shopify_display_title",
+                      "woocommerce_display_title",
+                  ]
+              ].sort_values(["parity_status", "master_title"], na_position="last")
+
+              df_parity_counts = df_parity["parity_status"].value_counts().rename_axis("parity_status").reset_index(name="products")
+              df_price_drift_top20 = df_parity[df_parity["parity_status"].eq("both_price_drift")].assign(abs_delta=lambda d: d["price_delta_pct"].abs()).sort_values("abs_delta", ascending=False).head(20)
+              df_shopify_only = df_parity[df_parity["parity_status"].eq("shopify_only")].sort_values("master_title")
+              df_woocommerce_only = df_parity[df_parity["parity_status"].eq("woocommerce_only")].sort_values("master_title")
+
+              df_parity_counts
+        - cellType: CODE
+          cellId: 019e568c-6d11-7000-81ce-9f81a555a207
+          cellLabel: Persist catalogue outputs
+          config:
+            source: |-
+              import uuid
+              from pathlib import Path
+              import pandas as pd
+              from datetime import datetime, timezone
+
+              exports_dir = Path("exports")
+              exports_dir.mkdir(exist_ok=True)
+
+              parity_drift_count = int(df_parity["parity_status"].eq("both_price_drift").sum())
+              last_scrape_at = datetime.now(timezone.utc).isoformat()
+
+              scrape_runs = pd.DataFrame(
+                  [
+                      {
+                          "id": str(uuid.uuid4()),
+                          "ran_at": last_scrape_at,
+                          "shopify_rows": len(df_shopify),
+                          "woocommerce_rows": len(df_woocommerce),
+                          "parity_drifts": parity_drift_count,
+                          "shopify_errors": len(shopify_errors),
+                          "woocommerce_errors": len(woocommerce_errors),
+                      }
+                  ]
+              )
+
+              df_unified.to_csv(exports_dir / "omnia_unified_catalogue.csv", index=False)
+              df_parity.to_csv(exports_dir / "omnia_parity_report.csv", index=False)
+              scrape_runs.to_csv(exports_dir / "omnia_scrape_runs_latest.csv", index=False)
+
+              persist_outputs = pd.DataFrame(
+                  [
+                      {"output": "unified_catalogue", "path": str(exports_dir / "omnia_unified_catalogue.csv"), "rows": len(df_unified)},
+                      {"output": "parity_report", "path": str(exports_dir / "omnia_parity_report.csv"), "rows": len(df_parity)},
+                      {"output": "scrape_runs", "path": str(exports_dir / "omnia_scrape_runs_latest.csv"), "rows": len(scrape_runs)},
+                  ]
+              )
+              persist_outputs
+        - cellType: SQL
+          cellId: 019e568c-899e-7000-8825-11a09975629b
+          cellLabel: App data — unified catalogue
+          config:
+            source: |
+              SELECT *
+              FROM df_unified
+            dataFrameCell: true
+            dataConnectionId: null
+            resultVariableName: app_unified_catalogue
+            useRichDisplay: true
+            enablePreview: true
+            sqlCellOutputType: PANDAS
+            useQueryMode: false
+            castDecimals: true
+            useNativeDates: true
+            outputFilteredResult: true
+            allowDuplicateColumns: false
+            tableDisplayConfig:
+              pageSize: 50
+              height: null
+              hideIcons: false
+              defaultColumnWidth: null
+              hideIndex: false
+              defaultSortColumn: null
+              defaultSortIndexColumn: null
+              defaultSortDirection: ASC
+              conditionalFormatting: null
+              calcs: null
+              filters: null
+              columnProperties:
+                - originalName: category_path
+                  renameTo: null
+                  size: 130
+                  wrapText: null
+                  displayFormat: null
+                - originalName: display_title
+                  renameTo: null
+                  size: 130
+                  wrapText: null
+                  displayFormat: null
+                - originalName: in_stock
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: master_title
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: on_sale
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: price_aed
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: regular_price_aed
+                  renameTo: null
+                  size: 170
+                  wrapText: null
+                  displayFormat: null
+                - originalName: row-index-0
+                  renameTo: null
+                  size: 46
+                  wrapText: null
+                  displayFormat: null
+                - originalName: sale_price_aed
+                  renameTo: null
+                  size: 140
+                  wrapText: null
+                  displayFormat: null
+                - originalName: sku
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: source
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: source_id
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: stock_qty
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+              columnOrdering: null
+              customColumnOrdering: null
+              pinnedColumns: null
+              hiddenColumns: null
+              pinIndexColumns: false
+              showAggregations: false
+              columnAggregations: null
+        - cellType: SQL
+          cellId: 019e568c-9c5c-7000-82ea-20b85e669d54
+          cellLabel: App data — parity report
+          config:
+            source: |
+              SELECT *
+              FROM df_parity
+            dataFrameCell: true
+            dataConnectionId: null
+            resultVariableName: app_parity_report
+            useRichDisplay: true
+            enablePreview: true
+            sqlCellOutputType: PANDAS
+            useQueryMode: false
+            castDecimals: true
+            useNativeDates: true
+            outputFilteredResult: true
+            allowDuplicateColumns: false
+            tableDisplayConfig:
+              pageSize: 50
+              height: null
+              hideIcons: false
+              defaultColumnWidth: null
+              hideIndex: false
+              defaultSortColumn: null
+              defaultSortIndexColumn: null
+              defaultSortDirection: ASC
+              conditionalFormatting: null
+              calcs: null
+              filters: null
+              columnProperties:
+                - originalName: master_title
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: match_key
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: on_shopify
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: on_woocommerce
+                  renameTo: null
+                  size: 140
+                  wrapText: null
+                  displayFormat: null
+                - originalName: parity_status
+                  renameTo: null
+                  size: 130
+                  wrapText: null
+                  displayFormat: null
+                - originalName: price_delta_pct
+                  renameTo: null
+                  size: 150
+                  wrapText: null
+                  displayFormat: null
+                - originalName: row-index-0
+                  renameTo: null
+                  size: 46
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_in_stock
+                  renameTo: null
+                  size: 160
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_price_aed
+                  renameTo: null
+                  size: 170
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_in_stock
+                  renameTo: null
+                  size: 200
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_price_aed
+                  renameTo: null
+                  size: 210
+                  wrapText: null
+                  displayFormat: null
+              columnOrdering: null
+              customColumnOrdering: null
+              pinnedColumns: null
+              hiddenColumns: null
+              pinIndexColumns: false
+              showAggregations: false
+              columnAggregations: null
+        - cellType: SQL
+          cellId: 019e568c-ae82-7000-92f0-35a8ed79e21d
+          cellLabel: App data — scrape run
+          config:
+            source: |
+              SELECT *
+              FROM scrape_runs
+            dataFrameCell: true
+            dataConnectionId: null
+            resultVariableName: app_scrape_run
+            useRichDisplay: true
+            enablePreview: true
+            sqlCellOutputType: PANDAS
+            useQueryMode: false
+            castDecimals: true
+            useNativeDates: true
+            outputFilteredResult: true
+            allowDuplicateColumns: false
+            tableDisplayConfig:
+              pageSize: 50
+              height: null
+              hideIcons: false
+              defaultColumnWidth: null
+              hideIndex: false
+              defaultSortColumn: null
+              defaultSortIndexColumn: null
+              defaultSortDirection: ASC
+              conditionalFormatting: null
+              calcs: null
+              filters: null
+              columnProperties:
+                - originalName: id
+                  renameTo: null
+                  size: 265
+                  wrapText: null
+                  displayFormat: null
+                - originalName: parity_drifts
+                  renameTo: null
+                  size: 116
+                  wrapText: null
+                  displayFormat: null
+                - originalName: ran_at
+                  renameTo: null
+                  size: 242
+                  wrapText: null
+                  displayFormat: null
+                - originalName: row-index-0
+                  renameTo: null
+                  size: 39
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_errors
+                  renameTo: null
+                  size: 129
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_rows
+                  renameTo: null
+                  size: 123
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_errors
+                  renameTo: null
+                  size: 169
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_rows
+                  renameTo: null
+                  size: 164
+                  wrapText: null
+                  displayFormat: null
+              columnOrdering: null
+              customColumnOrdering: null
+              pinnedColumns: null
+              hiddenColumns: null
+              pinIndexColumns: false
+              showAggregations: false
+              columnAggregations: null
+        - cellType: SQL
+          cellId: 019e5694-2de2-7000-9003-7a70c1c17426
+          cellLabel: Top 20 price drifts
+          config:
+            source: |
+              SELECT
+                  master_title,
+                  shopify_price_aed,
+                  woocommerce_price_aed,
+                  price_delta_pct,
+                  shopify_in_stock,
+                  woocommerce_in_stock,
+                  shopify_permalink,
+                  woocommerce_permalink
+              FROM df_parity
+              WHERE parity_status = 'both_price_drift'
+              ORDER BY ABS(price_delta_pct) DESC
+              LIMIT 20
+            dataFrameCell: true
+            dataConnectionId: null
+            resultVariableName: top_price_drifts
+            useRichDisplay: true
+            enablePreview: true
+            sqlCellOutputType: PANDAS
+            useQueryMode: false
+            castDecimals: true
+            useNativeDates: true
+            outputFilteredResult: true
+            allowDuplicateColumns: false
+            tableDisplayConfig:
+              pageSize: 50
+              height: null
+              hideIcons: false
+              defaultColumnWidth: null
+              hideIndex: false
+              defaultSortColumn: null
+              defaultSortIndexColumn: null
+              defaultSortDirection: ASC
+              conditionalFormatting: null
+              calcs: null
+              filters: null
+              columnProperties:
+                - originalName: master_title
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: price_delta_pct
+                  renameTo: null
+                  size: 150
+                  wrapText: null
+                  displayFormat: null
+                - originalName: row-index-0
+                  renameTo: null
+                  size: 46
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_in_stock
+                  renameTo: null
+                  size: 160
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_permalink
+                  renameTo: null
+                  size: 170
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_price_aed
+                  renameTo: null
+                  size: 170
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_in_stock
+                  renameTo: null
+                  size: 200
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_permalink
+                  renameTo: null
+                  size: 210
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_price_aed
+                  renameTo: null
+                  size: 210
+                  wrapText: null
+                  displayFormat: null
+              columnOrdering: null
+              customColumnOrdering: null
+              pinnedColumns: null
+              hiddenColumns: null
+              pinIndexColumns: false
+              showAggregations: false
+              columnAggregations: null
+        - cellType: SQL
+          cellId: 019e5694-444f-7000-96db-47ea4ba55088
+          cellLabel: Shopify-only products
+          config:
+            source: |
+              SELECT
+                  master_title,
+                  shopify_price_aed,
+                  shopify_in_stock,
+                  shopify_permalink
+              FROM df_parity
+              WHERE parity_status = 'shopify_only'
+              ORDER BY master_title
+            dataFrameCell: true
+            dataConnectionId: null
+            resultVariableName: shopify_only_products
+            useRichDisplay: true
+            enablePreview: true
+            sqlCellOutputType: PANDAS
+            useQueryMode: false
+            castDecimals: true
+            useNativeDates: true
+            outputFilteredResult: true
+            allowDuplicateColumns: false
+            tableDisplayConfig:
+              pageSize: 50
+              height: null
+              hideIcons: false
+              defaultColumnWidth: null
+              hideIndex: false
+              defaultSortColumn: null
+              defaultSortIndexColumn: null
+              defaultSortDirection: ASC
+              conditionalFormatting: null
+              calcs: null
+              filters: null
+              columnProperties:
+                - originalName: master_title
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: row-index-0
+                  renameTo: null
+                  size: 46
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_in_stock
+                  renameTo: null
+                  size: 160
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_permalink
+                  renameTo: null
+                  size: 170
+                  wrapText: null
+                  displayFormat: null
+                - originalName: shopify_price_aed
+                  renameTo: null
+                  size: 170
+                  wrapText: null
+                  displayFormat: null
+              columnOrdering: null
+              customColumnOrdering: null
+              pinnedColumns: null
+              hiddenColumns: null
+              pinIndexColumns: false
+              showAggregations: false
+              columnAggregations: null
+        - cellType: SQL
+          cellId: 019e5694-5aa6-7000-86f3-d04d599e8482
+          cellLabel: WooCommerce-only products
+          config:
+            source: |
+              SELECT
+                  master_title,
+                  woocommerce_price_aed,
+                  woocommerce_in_stock,
+                  woocommerce_permalink
+              FROM df_parity
+              WHERE parity_status = 'woocommerce_only'
+              ORDER BY master_title
+            dataFrameCell: true
+            dataConnectionId: null
+            resultVariableName: woocommerce_only_products
+            useRichDisplay: true
+            enablePreview: true
+            sqlCellOutputType: PANDAS
+            useQueryMode: false
+            castDecimals: true
+            useNativeDates: true
+            outputFilteredResult: true
+            allowDuplicateColumns: false
+            tableDisplayConfig:
+              pageSize: 50
+              height: null
+              hideIcons: false
+              defaultColumnWidth: null
+              hideIndex: false
+              defaultSortColumn: null
+              defaultSortIndexColumn: null
+              defaultSortDirection: ASC
+              conditionalFormatting: null
+              calcs: null
+              filters: null
+              columnProperties:
+                - originalName: master_title
+                  renameTo: null
+                  size: 120
+                  wrapText: null
+                  displayFormat: null
+                - originalName: row-index-0
+                  renameTo: null
+                  size: 46
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_in_stock
+                  renameTo: null
+                  size: 200
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_permalink
+                  renameTo: null
+                  size: 210
+                  wrapText: null
+                  displayFormat: null
+                - originalName: woocommerce_price_aed
+                  renameTo: null
+                  size: 210
+                  wrapText: null
+                  displayFormat: null
+              columnOrdering: null
+              customColumnOrdering: null
+              pinnedColumns: null
+              hiddenColumns: null
+              pinIndexColumns: false
+              showAggregations: false
+              columnAggregations: null
+appLayout:
+  visibleMetadataFields:
+    - NAME
+    - DESCRIPTION
+    - AUTHOR
+    - LAST_EDITED
+    - LAST_RUN
+    - CATEGORIES
+    - STATUS
+    - TABLE_OF_CONTENTS
+  fullWidth: false
+  tabs:
+    - name: Tab 1
+      rows: []
+sharedFilters: []
