@@ -222,7 +222,7 @@ export function CommandBar() {
               <Kbd>esc</Kbd> close
             </span>
           </div>
-          <span className="font-medium text-gold">OmniaHouse</span>
+          <span className="font-medium text-gold">House of Omnia</span>
         </div>
       </div>
     </div>

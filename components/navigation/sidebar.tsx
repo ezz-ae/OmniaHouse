@@ -23,7 +23,7 @@ export function Sidebar({ session }: { session: Session }) {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-medium text-ink leading-tight truncate">
-              OmniaHouse
+              House of Omnia
             </div>
             <div className="text-2xs text-ink-dim leading-tight truncate">
               {session.org.name}

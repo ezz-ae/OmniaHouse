@@ -16,9 +16,9 @@ export default function LoginPage({
               O
             </div>
             <div>
-              <div className="text-base font-medium text-ink leading-tight">OmniaHouse</div>
+              <div className="text-base font-medium text-ink leading-tight">House of Omnia</div>
               <div className="text-2xs text-ink-dim leading-tight uppercase tracking-widest">
-                Command Center
+                Private Management
               </div>
             </div>
           </div>

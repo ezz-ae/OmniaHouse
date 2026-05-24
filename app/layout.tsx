@@ -21,8 +21,8 @@ const serif = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: 'OmniaHouse',
-  description: 'Command Center for OmniaStores LLC.',
+  title: 'House of Omnia',
+  description: 'Private management system for the Omnia team.',
 };
 
 export default function RootLayout({

@@ -14,7 +14,7 @@ export default function SettingsPage() {
             <Row label="Name" value="Mahmoud Ezz" />
             <Row label="Email" value="m@ezz.ae" />
             <Row label="Role" value="Owner" />
-            <Row label="Organization" value="OmniaStores LLC" />
+            <Row label="Organization" value="House of Omnia" />
           </Section>
 
           <Section title="OmniaStores">
