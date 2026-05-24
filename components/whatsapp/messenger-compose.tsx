@@ -2,15 +2,18 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
+import { mockWritingCheck } from '@/lib/whatsapp/mock';
 import { Sparkles, Send, Paperclip, Loader2, X } from 'lucide-react';
+import type { WritingCheck } from '@/lib/whatsapp/types';
 
 export type SlashAction = 'extract' | 'optimize' | 'verify' | 'magazine';
 
 /**
  * Compose — one row, real-sized input, big targets.
- * No stacked toolbars. No empty optimizer panel parked above.
- * "/" types into the input AND/OR clicks the AI button → palette
- * pops as a popover ABOVE the input.
+ * "/" types into the input or click the AI button → palette pops above.
+ *
+ * Below the input: inline writing assistant. Tone label always visible,
+ * issue count appears only when there's a real suggestion. No parked panel.
  */
 export function MessengerCompose({
   onSend,
@@ -27,6 +30,7 @@ export function MessengerCompose({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const [paletteIdx, setPaletteIdx] = useState(0);
+  const [writing, setWriting] = useState<WritingCheck | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   // Auto-grow textarea
@@ -45,6 +49,13 @@ export function MessengerCompose({
       setPaletteQuery(m[1].slice(1));
       setPaletteIdx(0);
     }
+  }, [text]);
+
+  // Writing assistant — debounced 600ms
+  useEffect(() => {
+    if (!text || text.length < 5) { setWriting(null); return; }
+    const t = setTimeout(() => setWriting(mockWritingCheck(text)), 600);
+    return () => clearTimeout(t);
   }, [text]);
 
   const SLASH_ACTIONS: { id: SlashAction; label: string; hint: string }[] = useMemo(() => [
@@ -69,15 +80,10 @@ export function MessengerCompose({
     return [...a, ...s];
   }, [paletteQuery, SLASH_ACTIONS]);
 
-  function clearSlash() {
-    setText((prev) => prev.replace(/(\/[a-z0-9_-]*)$/, ''));
-  }
-  function closePalette() {
-    setPaletteOpen(false); setPaletteQuery(''); setPaletteIdx(0);
-  }
+  function clearSlash() { setText((prev) => prev.replace(/(\/[a-z0-9_-]*)$/, '')); }
+  function closePalette() { setPaletteOpen(false); setPaletteQuery(''); setPaletteIdx(0); }
   function chooseRow(r: Row) {
-    clearSlash();
-    closePalette();
+    clearSlash(); closePalette();
     if (r.kind === 'action') onSlashAction(r.id);
     else onShortcutPick(r.label);
     ref.current?.focus();
@@ -90,23 +96,22 @@ export function MessengerCompose({
       if (e.key === 'Escape')    { e.preventDefault(); closePalette(); return; }
     }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSend();
+      e.preventDefault(); handleSend();
     }
   }
   function handleSend() {
     if (!text.trim()) return;
-    onSend(text);
-    setText('');
-    closePalette();
+    onSend(text); setText(''); setWriting(null); closePalette();
   }
   function toggleAI() {
     if (paletteOpen) { closePalette(); return; }
-    setPaletteOpen(true);
-    setPaletteQuery('');
-    setPaletteIdx(0);
+    setPaletteOpen(true); setPaletteQuery(''); setPaletteIdx(0);
     ref.current?.focus();
   }
+
+  const toneColor = writing?.tone_check === 'luxury' ? 'text-emerald-400'
+    : writing?.tone_check === 'urgent' ? 'text-amber-400'
+    : writing?.tone_check === 'casual' ? 'text-zinc-400' : 'text-zinc-500';
 
   return (
     <div className="relative shrink-0 border-t border-zinc-800 bg-zinc-900">
@@ -126,13 +131,9 @@ export function MessengerCompose({
                   <button
                     onClick={() => chooseRow(r)}
                     onMouseEnter={() => setPaletteIdx(i)}
-                    className={`w-full text-left px-4 py-2 flex items-start gap-3 transition-colors ${
-                      isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/70'
-                    }`}
+                    className={`w-full text-left px-4 py-2 flex items-start gap-3 transition-colors ${isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/70'}`}
                   >
-                    <span className={`font-mono text-sm shrink-0 w-24 ${isAction ? 'text-emerald-400' : 'text-blue-400'}`}>
-                      {r.label}
-                    </span>
+                    <span className={`font-mono text-sm shrink-0 w-24 ${isAction ? 'text-emerald-400' : 'text-blue-400'}`}>{r.label}</span>
                     <span className="text-xs text-zinc-400 line-clamp-2 flex-1">{r.hint}</span>
                     {isAction && <span className="text-2xs uppercase tracking-wider text-emerald-500/70 shrink-0">AI</span>}
                   </button>
@@ -144,11 +145,10 @@ export function MessengerCompose({
       )}
 
       {/* Compose row */}
-      <div className="px-3 py-2.5 flex items-end gap-2">
+      <div className="px-3 pt-2.5 pb-1 flex items-end gap-2">
         <button className="w-9 h-9 shrink-0 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex items-center justify-center" title="Attach">
           <Paperclip className="w-4 h-4" />
         </button>
-
         <button
           onClick={toggleAI}
           className={`w-9 h-9 shrink-0 rounded-md flex items-center justify-center transition-colors ${
@@ -158,7 +158,6 @@ export function MessengerCompose({
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
         </button>
-
         <textarea
           ref={ref}
           value={text}
@@ -168,20 +167,50 @@ export function MessengerCompose({
           rows={1}
           className="flex-1 resize-none min-h-[40px] max-h-[180px] px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-md text-sm leading-snug text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 outline-none"
         />
-
         <button
           onClick={handleSend}
           disabled={!text.trim()}
           className={`h-9 px-4 shrink-0 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${
-            text.trim()
-              ? 'bg-emerald-500 text-zinc-900 hover:bg-emerald-400'
-              : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+            text.trim() ? 'bg-emerald-500 text-zinc-900 hover:bg-emerald-400' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
           }`}
           title="Send (⌘↵)"
         >
           <Send className="w-4 h-4" />
           <span>Send</span>
         </button>
+      </div>
+
+      {/* Writing assistant — subtle, inline */}
+      <div className="px-3 pb-2 h-5 flex items-center gap-3 text-xs">
+        {writing ? (
+          <>
+            <span className="text-zinc-500">tone:</span>
+            <span className={toneColor}>{writing.tone_check}</span>
+            {writing.issues.length > 0 && (
+              <>
+                <span className="text-zinc-700">·</span>
+                <span className="text-amber-400">{writing.issues.length} suggestion{writing.issues.length === 1 ? '' : 's'}</span>
+                <span className="text-zinc-500 truncate">
+                  {writing.issues.slice(0, 1).map((i) => `${i.kind}: "${i.before}" → "${i.after}"`).join(' · ')}
+                </span>
+              </>
+            )}
+            {writing.suggested_completion && (
+              <>
+                <span className="text-zinc-700 ml-auto">·</span>
+                <button
+                  onClick={() => setText(text + writing.suggested_completion)}
+                  className="text-blue-400 hover:text-blue-300 truncate max-w-[260px]"
+                  title="Append suggestion"
+                >
+                  + {writing.suggested_completion.trim()}
+                </button>
+              </>
+            )}
+          </>
+        ) : (
+          <span className="text-zinc-700">⌘↵ to send · / for AI tools and templates</span>
+        )}
       </div>
     </div>
   );

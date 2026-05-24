@@ -251,6 +251,8 @@ function ConvHeader({
 }) {
   const name = card.display_name || 'Unknown sender';
   const initials = card.matched ? name.split(' ').map((p) => p[0]).slice(0, 2).join('') : '?';
+  const v = active.vibes;
+  const mood = v.happiness_level >= 8 ? '🌟' : v.happiness_level >= 6 ? '🙂' : v.happiness_level >= 4 ? '😐' : '😟';
 
   return (
     <div className="h-14 shrink-0 border-b border-zinc-800 px-4 flex items-center gap-3 bg-zinc-900">
@@ -258,7 +260,16 @@ function ConvHeader({
         {initials}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-zinc-100">{name}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-zinc-100 truncate">{name}</span>
+          <span title={`Happiness ${v.happiness_level}/10`} className="text-sm leading-none">{mood}</span>
+          {v.urgency === 'critical' && <VibePill tone="rose">urgent</VibePill>}
+          {v.urgency === 'high'     && <VibePill tone="amber">high urgency</VibePill>}
+          {v.fraud_risk === 'high'  && <VibePill tone="rose">fraud risk</VibePill>}
+          {v.is_spam                && <VibePill tone="rose">spam</VibePill>}
+          {v.seniority_needed === 'manager' && <VibePill tone="amber">manager needed</VibePill>}
+          {v.business_blockers     && <VibePill tone="amber" title={v.business_blockers}>blocker</VibePill>}
+        </div>
         <div className="flex items-center gap-2 mt-0.5">
           <CopyablePhone phone={card.phone} size="xs" />
           <span className="text-xs text-zinc-500">·</span>
@@ -283,6 +294,17 @@ function ConvHeader({
         </button>
       </div>
     </div>
+  );
+}
+
+function VibePill({ tone, children, title }: { tone: 'rose' | 'amber' | 'emerald'; children: React.ReactNode; title?: string }) {
+  const tones = {
+    rose:    'bg-rose-500/15 text-rose-300 border-rose-500/30',
+    amber:   'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  };
+  return (
+    <span title={title} className={`text-2xs px-1.5 py-0.5 rounded border ${tones[tone]}`}>{children}</span>
   );
 }
 
