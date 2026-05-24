@@ -25,7 +25,11 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const isAuthPage = req.nextUrl.pathname === '/login';
+  const path = req.nextUrl.pathname;
+  const isAuthPage = path === '/login' || path === '/';
+  // Public routes — no auth required, accessible to customers via WhatsApp link
+  const isPublic = path.startsWith('/portal/');
+  if (isPublic) return res;
 
   // Session Security: Location Enforcement
   if (session) {
