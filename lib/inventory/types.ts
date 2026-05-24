@@ -26,7 +26,10 @@ export type Product = {
   category: string;          // Rings · Necklaces · Earrings · Bracelets · Bridal Sets
   material: string;          // 925 silver / 18k gold / rose gold / etc
   is_limited_edition: boolean;
-  image_hint?: string;       // for the placeholder gradient
+  image_hint?: string;       // synthetic gradient palette key (mock products)
+  image_url?: string | null; // real store image (live products); takes precedence over hint
+  /** Whether this row came from the live scrape vs the local mock catalogue. */
+  source?: 'live' | 'mock';
 
   // Per-store presence
   on_shopify: boolean;

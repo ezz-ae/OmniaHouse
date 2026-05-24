@@ -67,10 +67,52 @@ export function runStrategy(products: Product[]): StrategySuggestion[] {
         signal: snapshot(m),
       });
     }
+
+    // LIVE-data fallback rules — work without GA events, derived from the
+    // parity scrape alone. Important now because the 4,400+ live products
+    // have no metrics until ga_events is wired.
+    if (p.source === 'live') {
+      if (p.parity_status === 'both_price_drift' && p.price_delta_pct !== null && Math.abs(p.price_delta_pct) > 5) {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'PRICE_CHECK',
+          reason: `Price drift ${p.price_delta_pct.toFixed(1)}% between .ae (${p.shopify_price_aed}) and .com (${p.woocommerce_price_aed}).`,
+          impact_score: clamp(40 + Math.floor(Math.abs(p.price_delta_pct)), 1, 100),
+          signal: snapshot(m),
+        });
+      }
+      // Woo-only stock running low
+      if (p.parity_status !== 'shopify_only' && p.woocommerce_qty !== null && p.woocommerce_qty <= 3 && p.woocommerce_qty > 0) {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'RESTOCK',
+          reason: `Only ${p.woocommerce_qty} left on omniastores.com.`,
+          impact_score: clamp(55 + (5 - p.woocommerce_qty) * 5, 1, 100),
+          signal: snapshot(m),
+        });
+      }
+      // Shopify-only LE pieces — flag for Google Shopping listing
+      const isInStock = (p.shopify_qty !== null && p.shopify_qty > 0)
+        || (p.woocommerce_qty !== null && p.woocommerce_qty > 0)
+        || (p.on_shopify && p.shopify_qty === null);
+      if (p.parity_status === 'shopify_only' && p.is_limited_edition && isInStock) {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'LIST_GOOGLE_SHOPPING',
+          reason: 'Limited edition on .ae only. Listing on Google Shopping captures cross-country demand.',
+          impact_score: 65,
+          signal: snapshot(m),
+        });
+      }
+    }
   }
 
   return suggestions.sort((a, b) => b.impact_score - a.impact_score);
 }
+
 
 function snapshot(m: Product['metrics']) {
   return {

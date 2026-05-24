@@ -54,9 +54,17 @@ export function CatalogueTile({
         active && 'border-gold/40 ring-1 ring-gold/30',
       )}
     >
-      {/* Hero */}
-      <div className="relative h-32 overflow-hidden">
-        <HeroGradient hint={p.image_hint} />
+      {/* Hero — real image when present (live products), gradient fallback (mock) */}
+      <div className="relative h-32 overflow-hidden bg-zinc-800">
+        {p.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={p.image_url} alt={p.display_title} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <HeroGradient hint={p.image_hint} />
+        )}
+        {p.source === 'live' && (
+          <span className="absolute bottom-1 right-1 px-1 h-3.5 rounded bg-emerald-500/90 text-zinc-900 font-mono text-2xs flex items-center">LIVE</span>
+        )}
         {p.is_limited_edition && (
           <div className="absolute top-2 left-2">
             <Badge tone="gold">
