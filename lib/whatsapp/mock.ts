@@ -545,3 +545,74 @@ export function mockGeneratePaymentLink(
     customer_phone,
   };
 }
+
+// ─── Customer 360 ──────────────────────────────────────────────────────────
+
+export type RecentOrder = {
+  id: string;
+  store: 'shopify' | 'woocommerce' | 'whatsapp_draft';
+  number: string;
+  total_aed: number;
+  items_count: number;
+  status: 'completed' | 'shipped' | 'paid' | 'draft' | 'refund_requested';
+  at: string;
+};
+
+const ORDER_HISTORY: Record<string, RecentOrder[]> = {
+  cu_aisha: [
+    { id: 'o_aisha_3', store: 'whatsapp_draft', number: '#1287', total_aed: 2_600, items_count: 2, status: 'draft', at: 'today 14:33' },
+    { id: 'o_aisha_2', store: 'woocommerce', number: '#1156', total_aed: 6_400, items_count: 3, status: 'completed', at: '2026-04-12' },
+    { id: 'o_aisha_1', store: 'whatsapp_draft', number: '#1098', total_aed: 2_000, items_count: 1, status: 'completed', at: '2026-03-21' },
+    { id: 'o_aisha_0', store: 'whatsapp_draft', number: '#984',  total_aed: 4_000, items_count: 2, status: 'completed', at: '2026-02-14' },
+  ],
+  cu_noura: [
+    { id: 'o_noura_6', store: 'whatsapp_draft', number: '#1286', total_aed: 1_850, items_count: 1, status: 'paid', at: 'today 14:27' },
+    { id: 'o_noura_5', store: 'shopify',  number: '#1268', total_aed: 5_900, items_count: 2, status: 'completed', at: '2026-05-19' },
+    { id: 'o_noura_4', store: 'shopify',  number: '#1218', total_aed: 8_500, items_count: 3, status: 'completed', at: '2026-04-30' },
+    { id: 'o_noura_3', store: 'whatsapp_draft', number: '#1142', total_aed: 4_200, items_count: 1, status: 'completed', at: '2026-03-18' },
+    { id: 'o_noura_2', store: 'shopify',  number: '#1077', total_aed: 6_700, items_count: 2, status: 'completed', at: '2026-02-09' },
+    { id: 'o_noura_1', store: 'whatsapp_draft', number: '#1031', total_aed: 5_200, items_count: 2, status: 'completed', at: '2025-12-22' },
+    { id: 'o_noura_0', store: 'shopify',  number: '#988',  total_aed: 5_750, items_count: 1, status: 'completed', at: '2025-11-04' },
+  ],
+  cu_mariam: [
+    { id: 'o_mariam_1', store: 'whatsapp_draft', number: '#1285', total_aed: 5_400, items_count: 3, status: 'draft', at: 'today 13:51' },
+    { id: 'o_mariam_0', store: 'whatsapp_draft', number: '#998',  total_aed: 3_400, items_count: 1, status: 'completed', at: '2026-02-08' },
+  ],
+};
+
+export function getRecentOrders(customer_id: string | null): RecentOrder[] {
+  if (!customer_id) return [];
+  return ORDER_HISTORY[customer_id] || [];
+}
+
+export type WalletTxn = {
+  id: string;
+  at: string;
+  amount_aed: number;
+  type: 'accrual' | 'spending';
+  note: string;
+  related_order?: string;
+};
+
+const WALLET_LEDGER: Record<string, WalletTxn[]> = {
+  cu_aisha: [
+    { id: 't_aisha_3', at: '2026-04-12', amount_aed: 320, type: 'accrual',  note: 'Order #1156 · 5% on AED 6,400', related_order: '#1156' },
+    { id: 't_aisha_2', at: '2026-03-21', amount_aed: 100, type: 'accrual',  note: 'Order #1098 · 5% on AED 2,000', related_order: '#1098' },
+    { id: 't_aisha_1', at: '2026-02-14', amount_aed: 200, type: 'accrual',  note: 'Order #984 · 5% on AED 4,000',  related_order: '#984' },
+  ],
+  cu_noura: [
+    { id: 't_noura_4', at: '2026-05-19', amount_aed: 295, type: 'accrual',  note: 'Order #1268 · 5% on AED 5,900', related_order: '#1268' },
+    { id: 't_noura_3', at: '2026-05-02', amount_aed: 200, type: 'spending', note: 'LE Celestial Necklace partial',   related_order: '#1244' },
+    { id: 't_noura_2', at: '2026-04-30', amount_aed: 425, type: 'accrual',  note: 'Order #1218 · 5% on AED 8,500', related_order: '#1218' },
+    { id: 't_noura_1', at: '2026-03-18', amount_aed: 210, type: 'accrual',  note: 'Order #1142 · 5% on AED 4,200', related_order: '#1142' },
+    { id: 't_noura_0', at: '2026-02-09', amount_aed: 335, type: 'accrual',  note: 'Order #1077 · 5% on AED 6,700', related_order: '#1077' },
+  ],
+  cu_mariam: [
+    { id: 't_mariam_0', at: '2026-02-08', amount_aed: 170, type: 'accrual', note: 'Order #998 · 5% on AED 3,400', related_order: '#998' },
+  ],
+};
+
+export function getWalletLedger(customer_id: string | null): WalletTxn[] {
+  if (!customer_id) return [];
+  return WALLET_LEDGER[customer_id] || [];
+}

@@ -10,6 +10,7 @@ import { CopyablePhone } from '@/components/whatsapp/copyable-phone';
 import {
   getConversations, getCustomerCard, mockExtract, mockOptimizeReply,
   mockVerifyPayment, mockMagazine, mockGeneratePaymentLink,
+  getRecentOrders, getWalletLedger,
 } from '@/lib/whatsapp/mock';
 import { messagesToTurns, type Turn, type ProductShare } from '@/lib/whatsapp/thread';
 import { SHORTCUTS } from '@/lib/whatsapp/shortcuts';
@@ -159,9 +160,13 @@ export default function WhatsAppDeskPage() {
     addTurn({ kind: 'verify', at: now(), data: mockVerifyPayment(m.media.filename), for_filename: m.media.filename });
   }
 
-  function pushDraft(target: 'shopify' | 'woocommerce') {
+  function pushDraft(target: 'shopify' | 'woocommerce', meta?: { labels?: string[]; assignee_id?: string | null }) {
     const store = target === 'shopify' ? 'omniastores.ae' : 'omniastores.com';
-    addTurn({ kind: 'system', at: now(), data: { text: `Draft pushed to ${store} · order_submission created`, tone: 'good' } });
+    const metaBits = [];
+    if (meta?.labels?.length) metaBits.push(`labels: ${meta.labels.join(', ')}`);
+    if (meta?.assignee_id) metaBits.push(`assigned to ${meta.assignee_id}`);
+    const metaStr = metaBits.length ? ` · ${metaBits.join(' · ')}` : '';
+    addTurn({ kind: 'system', at: now(), data: { text: `Draft pushed to ${store} · order_submission created${metaStr}`, tone: 'good' } });
 
     // Auto-share to Finance Room when payment proof exists in the chat —
     // because the order_submissions row will need a payment check before
@@ -227,10 +232,22 @@ export default function WhatsAppDeskPage() {
               onToggleCustomer={() => setShowCustomer(!showCustomer)}
             />
           )}
-          {section === 'drafts' && <DraftsSection />}
-          {section === 'customers' && <CustomersSection />}
+          {section === 'drafts' && (
+            <DraftsSection
+              onOpenChat={(convId) => { setActiveId(convId); setSection('inbox'); }}
+            />
+          )}
+          {section === 'customers' && (
+            <CustomersSection
+              onOpenChat={(convId) => { setActiveId(convId); setSection('inbox'); }}
+            />
+          )}
           {section === 'templates' && <TemplatesSection />}
-          {section === 'activity' && <ActivitySection />}
+          {section === 'activity' && (
+            <ActivitySection
+              onOpenChat={(convId) => { setActiveId(convId); setSection('inbox'); }}
+            />
+          )}
           {section === 'settings' && <SettingsSection />}
         </main>
       </div>
@@ -382,15 +399,26 @@ function VibePill({ tone, children, title }: { tone: 'rose' | 'amber' | 'emerald
 }
 
 function CustomerRail({ card }: { card: ReturnType<typeof getCustomerCard> }) {
+  const orders = getRecentOrders(card.customer_id);
+  const ledger = getWalletLedger(card.customer_id);
+  const [blocked, setBlocked] = useState(false);
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-5">
+      {/* Identity */}
       <div>
         <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Identity</div>
         <div className="text-base font-medium text-zinc-100">{card.display_name || 'Unknown'}</div>
         <CopyablePhone phone={card.phone} size="sm" showIcon />
         <div className="text-sm text-zinc-400 mt-1">{card.country} · {card.language_pref.toUpperCase()}</div>
+        {blocked && (
+          <div className="mt-2 px-2.5 py-1.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+            Blocked · cannot place new orders
+          </div>
+        )}
       </div>
 
+      {/* Cross-store */}
       {card.history && (
         <div>
           <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Cross-store history</div>
@@ -411,13 +439,57 @@ function CustomerRail({ card }: { card: ReturnType<typeof getCustomerCard> }) {
         </div>
       )}
 
-      {card.wallet && card.wallet.balance_aed > 0 && (
+      {/* Wallet + ledger */}
+      {card.wallet && (
         <div>
           <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2 flex items-center gap-1.5">
             <Wallet className="w-3 h-3" /> Cashback wallet
           </div>
           <div className="text-base font-semibold text-emerald-400 numeric">{formatAED(card.wallet.balance_aed)}</div>
-          <div className="text-xs text-zinc-500 mt-0.5">Limited Editions only</div>
+          <div className="text-xs text-zinc-500 mt-0.5 mb-2">Limited Editions only</div>
+          {ledger.length > 0 && (
+            <ul className="space-y-1.5 mt-2 pt-2 border-t border-zinc-800">
+              {ledger.slice(0, 4).map((t) => (
+                <li key={t.id} className="flex items-baseline justify-between text-xs">
+                  <span className="text-zinc-400 truncate flex-1">
+                    <span className="text-zinc-500 numeric mr-2">{t.at}</span>
+                    {t.note}
+                  </span>
+                  <span className={`numeric ml-2 shrink-0 ${t.type === 'accrual' ? 'text-emerald-400' : 'text-rose-300'}`}>
+                    {t.type === 'accrual' ? '+' : '-'}{formatAED(t.amount_aed)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Recent orders */}
+      {orders.length > 0 && (
+        <div>
+          <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Recent orders</div>
+          <ul className="space-y-1.5">
+            {orders.slice(0, 5).map((o) => (
+              <li key={o.id} className="flex items-center justify-between text-sm">
+                <div className="min-w-0 flex-1">
+                  <span className="text-zinc-100 font-mono text-xs">{o.number}</span>
+                  <span className="text-zinc-500 text-xs ml-2">
+                    {o.store === 'shopify' ? '.ae' : o.store === 'woocommerce' ? '.com' : 'WA'}
+                  </span>
+                  <span className="text-zinc-500 text-xs ml-2">· {o.items_count} item{o.items_count === 1 ? '' : 's'}</span>
+                </div>
+                <span className={`text-xs px-1.5 h-4 rounded ${
+                  o.status === 'completed' || o.status === 'paid' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30'
+                  : o.status === 'draft' ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                } flex items-center`}>
+                  {o.status.replace('_', ' ')}
+                </span>
+                <span className="text-zinc-300 numeric ml-3 shrink-0 w-20 text-right">{formatAED(o.total_aed, { compact: true })}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -446,18 +518,39 @@ function CustomerRail({ card }: { card: ReturnType<typeof getCustomerCard> }) {
           </div>
         </div>
       )}
+
+      {/* Actions — block / unblock */}
+      {card.matched && (
+        <div className="pt-2 border-t border-zinc-800">
+          {blocked ? (
+            <button
+              onClick={() => setBlocked(false)}
+              className="w-full h-8 rounded border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              Unblock customer
+            </button>
+          ) : (
+            <button
+              onClick={() => { if (confirm('Block this customer? They will be auto-rejected on next contact.')) setBlocked(true); }}
+              className="w-full h-8 rounded border border-rose-500/30 text-sm text-rose-300 hover:bg-rose-500/10"
+            >
+              Block customer
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function DraftsSection() {
+function DraftsSection({ onOpenChat }: { onOpenChat: (convId: string) => void }) {
   const drafts = [
-    { id: 'd1', customer: 'Aisha M.', phone: '+971501234884', items: 2, total: 2600, created: 'today 14:32', target: 'shopify' as const },
-    { id: 'd2', customer: 'Mariam K.', phone: '+966507733091', items: 3, total: 5400, created: 'today 13:51', target: 'shopify' as const },
+    { id: 'd1', conv_id: 'w1', customer: 'Aisha M.', phone: '+971501234884', items: 2, total: 2600, created: 'today 14:32', target: 'shopify' as const, labels: ['repeat', 'sister_gift'], assignee: 'Layla S.' },
+    { id: 'd2', conv_id: 'w4', customer: 'Mariam K.', phone: '+966507733091', items: 3, total: 5400, created: 'today 13:51', target: 'shopify' as const, labels: ['ksa', 'bridal'], assignee: 'Layla S.' },
   ];
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-900">
-      <SectionHead title="My drafts" count={drafts.length} hint="Drafts saved from conversations, waiting to be pushed to a store." />
+      <SectionHead title="My drafts" count={drafts.length} hint="Drafts saved from conversations. Click a row to reopen the chat." />
       <div className="px-6 pb-6">
         <table className="w-full text-sm">
           <thead className="text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
@@ -467,21 +560,32 @@ function DraftsSection() {
               <th className="text-right font-medium py-2">Items</th>
               <th className="text-right font-medium py-2">Total</th>
               <th className="text-left font-medium py-2 pl-4">Target</th>
-              <th className="text-left font-medium py-2 pl-4">Created</th>
+              <th className="text-left font-medium py-2 pl-4">Assignee</th>
+              <th className="text-left font-medium py-2 pl-4">Labels</th>
               <th className="text-right font-medium py-2">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
             {drafts.map((d) => (
-              <tr key={d.id} className="hover:bg-zinc-800/40">
+              <tr key={d.id} onClick={() => onOpenChat(d.conv_id)} className="hover:bg-zinc-800/40 cursor-pointer">
                 <td className="py-2.5 text-zinc-100">{d.customer}</td>
-                <td className="py-2.5"><CopyablePhone phone={d.phone} size="sm" /></td>
+                <td className="py-2.5" onClick={(e) => e.stopPropagation()}><CopyablePhone phone={d.phone} size="sm" /></td>
                 <td className="py-2.5 text-right text-zinc-300 numeric">{d.items}</td>
                 <td className="py-2.5 text-right text-zinc-100 numeric">{formatAED(d.total)}</td>
                 <td className="py-2.5 pl-4 text-zinc-300">{d.target === 'shopify' ? 'omniastores.ae' : 'omniastores.com'}</td>
-                <td className="py-2.5 pl-4 text-zinc-400 numeric">{d.created}</td>
-                <td className="py-2.5 text-right">
-                  <button className="px-2 h-7 rounded bg-emerald-500 text-zinc-900 text-xs font-medium hover:bg-emerald-400">Push</button>
+                <td className="py-2.5 pl-4 text-zinc-400">{d.assignee}</td>
+                <td className="py-2.5 pl-4">
+                  <div className="flex flex-wrap gap-1">
+                    {d.labels.map((l) => (
+                      <span key={l} className="text-2xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">{l}</span>
+                    ))}
+                  </div>
+                </td>
+                <td className="py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1 justify-end">
+                    <button onClick={() => onOpenChat(d.conv_id)} className="px-2 h-7 rounded border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-800">Open chat</button>
+                    <button className="px-2 h-7 rounded bg-emerald-500 text-zinc-900 text-xs font-medium hover:bg-emerald-400">Push</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -492,37 +596,66 @@ function DraftsSection() {
   );
 }
 
-function CustomersSection() {
+function CustomersSection({ onOpenChat }: { onOpenChat: (convId: string) => void }) {
+  const [seg, setSeg] = useState<'all' | 'vip' | 'repeat' | 'new' | 'at_risk'>('all');
   const customers = [
-    { id: 'cu_noura', name: 'Noura A.', phone: '+971555478217', orders: 7, ltv: 38200, last: '2026-05-19', stores: 'shopify+wa' },
-    { id: 'cu_aisha', name: 'Aisha M.', phone: '+971501234884', orders: 3, ltv: 14400, last: '2026-04-12', stores: 'woo+wa' },
-    { id: 'cu_mariam', name: 'Mariam K.', phone: '+966507733091', orders: 1, ltv: 3400, last: '2026-02-08', stores: 'wa' },
-    { id: 'cu_reem',   name: 'Reem H.', phone: '+971566201155', orders: 4, ltv: 22100, last: '2026-05-02', stores: 'shopify+wa' },
+    { id: 'cu_noura',  conv_id: 'w3', name: 'Noura A.', phone: '+971555478217', orders: 7, ltv: 38200, last: '2026-05-19', stores: 'shopify+wa', seg: 'vip' as const },
+    { id: 'cu_aisha',  conv_id: 'w1', name: 'Aisha M.', phone: '+971501234884', orders: 3, ltv: 14400, last: '2026-04-12', stores: 'woo+wa',     seg: 'repeat' as const },
+    { id: 'cu_mariam', conv_id: 'w4', name: 'Mariam K.', phone: '+966507733091', orders: 1, ltv: 3400, last: '2026-02-08', stores: 'wa',         seg: 'at_risk' as const },
+    { id: 'cu_reem',   conv_id: 'w1', name: 'Reem H.',  phone: '+971566201155', orders: 4, ltv: 22100, last: '2026-05-02', stores: 'shopify+wa', seg: 'repeat' as const },
   ];
+  const filtered = seg === 'all' ? customers : customers.filter((c) => c.seg === seg);
+
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-900">
-      <SectionHead title="Customers" count={customers.length} hint="Customers contacted on WhatsApp recently." />
+      <SectionHead title="Customers" count={filtered.length} hint="Click a row to open that customer's chat." />
+      <div className="px-6 py-3 border-b border-zinc-800 flex items-center gap-2">
+        {(['all', 'vip', 'repeat', 'new', 'at_risk'] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setSeg(s)}
+            className={`px-2.5 h-7 text-xs rounded border transition-colors ${
+              seg === s ? 'bg-zinc-800 text-zinc-100 border-zinc-600' : 'border-zinc-700 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            {s.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
       <div className="px-6 pb-6">
         <table className="w-full text-sm">
           <thead className="text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
             <tr>
               <th className="text-left font-medium py-2">Customer</th>
               <th className="text-left font-medium py-2">Phone</th>
+              <th className="text-left font-medium py-2 pl-4">Segment</th>
               <th className="text-right font-medium py-2">Orders</th>
               <th className="text-right font-medium py-2">LTV</th>
               <th className="text-left font-medium py-2 pl-4">Last</th>
               <th className="text-left font-medium py-2 pl-4">Stores</th>
+              <th className="text-right font-medium py-2">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
-            {customers.map((c) => (
-              <tr key={c.id} className="hover:bg-zinc-800/40">
+            {filtered.map((c) => (
+              <tr key={c.id} onClick={() => onOpenChat(c.conv_id)} className="hover:bg-zinc-800/40 cursor-pointer">
                 <td className="py-2.5 text-zinc-100">{c.name}</td>
-                <td className="py-2.5"><CopyablePhone phone={c.phone} size="sm" /></td>
+                <td className="py-2.5" onClick={(e) => e.stopPropagation()}><CopyablePhone phone={c.phone} size="sm" /></td>
+                <td className="py-2.5 pl-4">
+                  <span className={`text-xs px-2 py-0.5 rounded border ${
+                    c.seg === 'vip' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : c.seg === 'repeat' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : c.seg === 'at_risk' ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                    : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                  }`}>{c.seg.replace('_', ' ')}</span>
+                </td>
                 <td className="py-2.5 text-right text-zinc-300 numeric">{c.orders}</td>
                 <td className="py-2.5 text-right text-zinc-100 numeric">{formatAED(c.ltv, { compact: true })}</td>
                 <td className="py-2.5 pl-4 text-zinc-400 numeric">{c.last}</td>
                 <td className="py-2.5 pl-4 text-zinc-300 font-mono text-xs">{c.stores}</td>
+                <td className="py-2.5 text-right">
+                  <span className="text-xs text-zinc-500">Open chat →</span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -552,26 +685,31 @@ function TemplatesSection() {
   );
 }
 
-function ActivitySection() {
+function ActivitySection({ onOpenChat }: { onOpenChat: (convId: string) => void }) {
   const events = [
-    { at: '14:35', who: 'Layla', what: 'extracted chat', detail: 'Aisha M. — Crescent Ring × 2, COD AED 2,600' },
-    { at: '14:31', who: 'Omar', what: 'verified payment', detail: 'Noura A. — Emirates NBD, 91%' },
-    { at: '14:22', who: 'Layla', what: 'used template', detail: '/welcome' },
-    { at: '14:18', who: 'Layla', what: 'pushed draft', detail: 'Aisha M. → omniastores.ae' },
-    { at: '14:11', who: 'Omar', what: 'optimized reply', detail: 'Noura A. — 78% conversion' },
-    { at: '13:52', who: 'Layla', what: 'flagged fraud', detail: '+971501009922 — Payment.pdf rejected' },
+    { at: '14:35', who: 'Layla', what: 'extracted chat', detail: 'Aisha M. — Crescent Ring × 2, COD AED 2,600', conv_id: 'w1' },
+    { at: '14:31', who: 'Omar', what: 'verified payment', detail: 'Noura A. — Emirates NBD, 91%', conv_id: 'w3' },
+    { at: '14:22', who: 'Layla', what: 'used template', detail: '/welcome', conv_id: 'w1' },
+    { at: '14:18', who: 'Layla', what: 'pushed draft', detail: 'Aisha M. → omniastores.ae', conv_id: 'w1' },
+    { at: '14:11', who: 'Omar', what: 'optimized reply', detail: 'Noura A. — 78% conversion', conv_id: 'w3' },
+    { at: '13:52', who: 'Layla', what: 'flagged fraud', detail: '+971501009922 — Payment.pdf rejected', conv_id: 'w6' },
   ];
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-900">
-      <SectionHead title="Activity log" count={events.length} hint="Recent agent actions and AI extractions. Append-only." />
+      <SectionHead title="Activity log" count={events.length} hint="Recent agent actions and AI extractions. Append-only. Click a row to open the chat." />
       <div className="px-6 pb-6">
         <ul className="divide-y divide-zinc-800 border-y border-zinc-800">
           {events.map((e, i) => (
-            <li key={i} className="py-2.5 flex items-baseline gap-3 text-sm">
+            <li
+              key={i}
+              onClick={() => e.conv_id && onOpenChat(e.conv_id)}
+              className={`py-2.5 flex items-baseline gap-3 text-sm ${e.conv_id ? 'cursor-pointer hover:bg-zinc-800/40 px-2 -mx-2 rounded' : ''}`}
+            >
               <span className="w-12 shrink-0 text-xs text-zinc-500 numeric">{e.at}</span>
               <span className="w-16 shrink-0 text-zinc-100 font-medium">{e.who}</span>
               <span className="w-32 shrink-0 text-zinc-400">{e.what}</span>
               <span className="text-zinc-300 flex-1 truncate">{e.detail}</span>
+              {e.conv_id && <span className="text-xs text-zinc-500 shrink-0">open →</span>}
             </li>
           ))}
         </ul>

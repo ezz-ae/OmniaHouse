@@ -14,12 +14,26 @@ import type { ProductShare, PaymentLink } from '@/lib/whatsapp/thread';
 
 // ─── Extract ───────────────────────────────────────────────────────────────
 
+const LABEL_OPTIONS = ['vip', 'bridal', 'sister_gift', 'repeat', 'le_browser', 'pressure', 'ksa', 'wedding', 'first_time'];
+const ASSIGNEE_OPTIONS = [
+  { id: 'layla', name: 'Layla S.' },
+  { id: 'omar', name: 'Omar K.' },
+  { id: 'sara', name: 'Sara K.' },
+  { id: 'mahmoud', name: 'Mahmoud E.' },
+];
+
 export function ExtractCard({
   data, card, at, onDismiss, onPush,
 }: {
   data: Extraction; card: CustomerCard; at: string;
-  onDismiss?: () => void; onPush?: (target: 'shopify' | 'woocommerce') => void;
+  onDismiss?: () => void; onPush?: (target: 'shopify' | 'woocommerce', meta: { labels: string[]; assignee_id: string | null }) => void;
 }) {
+  const [labels, setLabels] = useState<string[]>(card.labels);
+  const [assignee, setAssignee] = useState<string | null>('layla');
+  const [assigneeOpen, setAssigneeOpen] = useState(false);
+  function toggleLabel(l: string) {
+    setLabels((arr) => arr.includes(l) ? arr.filter((x) => x !== l) : [...arr, l]);
+  }
   const total = data.selected_products.reduce((s, p) => s + (p.price_aed || 0) * p.qty, 0);
   const routing = data.selected_products.length > 0
     ? routeForOrder({
@@ -85,6 +99,55 @@ export function ExtractCard({
         </div>
       )}
 
+      {/* Labels + Assignee — order_submissions metadata */}
+      <div className="pt-3 border-t border-zinc-700 mb-3">
+        <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Labels</div>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {LABEL_OPTIONS.map((l) => {
+            const on = labels.includes(l);
+            return (
+              <button
+                key={l}
+                onClick={() => toggleLabel(l)}
+                className={`px-2 h-6 text-xs rounded border transition-colors ${
+                  on
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                    : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
+                }`}
+              >
+                {l.replace(/_/g, ' ')}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs uppercase tracking-wider text-zinc-500">Assignee</span>
+          <div className="relative">
+            <button
+              onClick={() => setAssigneeOpen(!assigneeOpen)}
+              className="h-7 px-2.5 rounded border border-zinc-700 bg-zinc-900 text-sm text-zinc-100 hover:border-zinc-600 flex items-center gap-1.5"
+            >
+              {ASSIGNEE_OPTIONS.find((a) => a.id === assignee)?.name || 'Unassigned'}
+              <ArrowRight className={`w-3 h-3 text-zinc-500 transition-transform ${assigneeOpen ? 'rotate-90' : ''}`} />
+            </button>
+            {assigneeOpen && (
+              <div className="absolute top-full left-0 mt-1 w-44 rounded-md bg-zinc-900 border border-zinc-700 shadow-xl z-10">
+                {ASSIGNEE_OPTIONS.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => { setAssignee(a.id); setAssigneeOpen(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-800 ${a.id === assignee ? 'text-emerald-400' : 'text-zinc-100'}`}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Total + push */}
       <div className="pt-3 border-t border-zinc-700 flex items-center justify-between gap-3">
         <div>
@@ -96,7 +159,7 @@ export function ExtractCard({
         </div>
         {routing && (
           <button
-            onClick={() => onPush?.(routing.default_store as 'shopify' | 'woocommerce')}
+            onClick={() => onPush?.(routing.default_store as 'shopify' | 'woocommerce', { labels, assignee_id: assignee })}
             className="px-3 h-9 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 flex items-center gap-1.5"
           >
             Push to {routing.default_store === 'shopify' ? '.ae' : '.com'}
