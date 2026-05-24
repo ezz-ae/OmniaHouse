@@ -25,7 +25,6 @@ export default function ManagementRoom() {
   const [isSendingInvoice, setIsSendingInvoice] = useState(false);
   const [isCompletingOrder, setIsCompletingOrder] = useState(false);
   const [isSyncingCustomer, setIsSyncingCustomer] = useState(false);
-  const [customerWalletBalance, setCustomerWalletBalance] = useState<number | null>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -122,7 +121,6 @@ export default function ManagementRoom() {
   const handleEditShopifyDraft = async (orderId: number) => {
     setFetchingOrder(true);
     setIsEditModalOpen(true);
-    setCustomerWalletBalance(null);
     try {
       const res = await fetch(`/api/shopify/draft-orders/${orderId}`);
       const data = await res.json();
@@ -133,18 +131,6 @@ export default function ManagementRoom() {
           line_items: data.draft_order.line_items || []
         });
         setProductSearch('');
-
-        // Fetch Wallet Balance for Customer Loyalty Badge
-        const customerPhone = data.draft_order.customer?.phone;
-        if (customerPhone) {
-          const { data: wallet } = await supabase
-            .from('customer_wallets')
-            .select('balance_aed')
-            .eq('customer_phone', customerPhone)
-            .single();
-          
-          if (wallet) setCustomerWalletBalance(Number(wallet.balance_aed));
-        }
       }
     } catch (e) {
       console.error("Failed to fetch draft order", e);
@@ -471,14 +457,6 @@ export default function ManagementRoom() {
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Context</p>
                       <p className="font-bold truncate">{editingOrder.customer ? `${editingOrder.customer.first_name} ${editingOrder.customer.last_name}` : 'No Customer Linked'}</p>
                       <p className="text-xs text-slate-400 truncate">{editingOrder.customer?.email || editingOrder.customer?.phone || 'Missing contact info'}</p>
-
-                      {customerWalletBalance !== null && (
-                        <div className="mt-2">
-                          <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-emerald-500/30">
-                            Loyalty Balance: {customerWalletBalance.toLocaleString()} AED
-                          </span>
-                        </div>
-                      )}
                     </div>
                     <button 
                       onClick={handleSyncCustomer}
@@ -567,16 +545,6 @@ export default function ManagementRoom() {
                       >
                         {isCompletingOrder ? 'Completing...' : 'Complete Order'}
                       </button>
-                      {integrations.find(i => i.provider === 'shopify')?.base_url && (
-                        <a 
-                          href={`${integrations.find(i => i.provider === 'shopify')?.base_url}/admin/draft_orders/${editingOrder.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-50 transition-colors text-center"
-                        >
-                          View on Shopify
-                        </a>
-                      )}
                     </div>
                     {!editingOrder.customer?.email && (
                       <p className="text-[8px] text-amber-600 italic">Invoice requires customer email.</p>
