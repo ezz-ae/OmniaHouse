@@ -79,27 +79,52 @@ export default function WhatsAppDeskPage() {
 
   async function runAction(action: SlashAction) {
     setBusy(action);
-    await new Promise((r) => setTimeout(r, 600));
-    setBusy(null);
-    if (action === 'extract') {
-      addTurn({ kind: 'extract', at: now(), data: mockExtract(active) });
-    } else if (action === 'optimize') {
-      const last = active.messages.filter((m) => m.from === 'agent').slice(-1)[0]?.body || '';
-      if (!last) {
-        addTurn({ kind: 'system', at: now(), data: { text: 'Type a draft, then run /optimize.', tone: 'warn' } });
-      } else {
-        addTurn({ kind: 'optimize', at: now(), data: mockOptimizeReply(last, 'en') });
-      }
-    } else if (action === 'verify') {
-      const lastMedia = [...active.messages].reverse().find((m) => m.media);
-      if (!lastMedia) {
-        addTurn({ kind: 'system', at: now(), data: { text: 'No payment screenshot in this chat.', tone: 'warn' } });
-      } else {
-        addTurn({ kind: 'verify', at: now(), data: mockVerifyPayment(lastMedia.media!.filename), for_filename: lastMedia.media!.filename });
-      }
-    } else if (action === 'magazine') {
-      addTurn({ kind: 'magazine', at: now(), data: mockMagazine(card.display_name || 'Customer') });
-    } else if (action === 'tamara' || action === 'tabby') {
+    try {
+      if (action === 'extract') {
+        const res = await fetch('/api/whatsapp/extract', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: active.id, user_role: 'whatsapp_agent' }),
+        }).then((r) => r.json()).catch(() => null);
+        const data = res?.extraction || mockExtract(active);
+        addTurn({ kind: 'extract', at: now(), data });
+        if (res?.mode === 'real') addTurn({ kind: 'system', at: now(), data: { text: `via ${res.model}`, tone: 'info' } });
+      } else if (action === 'optimize') {
+        const last = active.messages.filter((m) => m.from === 'agent').slice(-1)[0]?.body || '';
+        if (!last) {
+          addTurn({ kind: 'system', at: now(), data: { text: 'Type a draft, then run /optimize.', tone: 'warn' } });
+        } else {
+          const context = active.messages.slice(-6).map((m) => `${m.from}: ${m.body}`).join('\n');
+          const res = await fetch('/api/whatsapp/optimize-reply', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ draft: last, language: 'en', context }),
+          }).then((r) => r.json()).catch(() => null);
+          const data = res?.optimization || mockOptimizeReply(last, 'en');
+          addTurn({ kind: 'optimize', at: now(), data });
+        }
+      } else if (action === 'verify') {
+        const lastMedia = [...active.messages].reverse().find((m) => m.media);
+        if (!lastMedia) {
+          addTurn({ kind: 'system', at: now(), data: { text: 'No payment screenshot in this chat.', tone: 'warn' } });
+        } else {
+          const res = await fetch('/api/whatsapp/verify-payment', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: lastMedia.media!.filename, customer_phone: active.phone }),
+          }).then((r) => r.json()).catch(() => null);
+          const data = res?.verification || mockVerifyPayment(lastMedia.media!.filename);
+          addTurn({ kind: 'verify', at: now(), data, for_filename: lastMedia.media!.filename });
+        }
+      } else if (action === 'magazine') {
+        const res = await fetch('/api/whatsapp/magazine', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_name: card.display_name || 'Customer',
+            items: [],
+            ghost_history: card.ghost?.pages_viewed || [],
+          }),
+        }).then((r) => r.json()).catch(() => null);
+        const data = res?.magazine || mockMagazine(card.display_name || 'Customer');
+        addTurn({ kind: 'magazine', at: now(), data });
+      } else if (action === 'tamara' || action === 'tabby') {
       // Use the latest extract's total; otherwise ask the agent to extract first
       const chatExtras = extraTurns[active.id] || [];
       const lastExtract = [...chatExtras].reverse().find((t) => t.kind === 'extract') as any;
@@ -140,6 +165,9 @@ export default function WhatsAppDeskPage() {
         ? `Wallet synced from customer_wallets · balance ${formatAED(bal)} · Limited Editions only`
         : 'Customer not yet matched — nothing to sync.';
       addTurn({ kind: 'system', at: now(), data: { text: txt, tone: card.matched ? 'info' : 'warn' } });
+      }
+    } finally {
+      setBusy(null);
     }
   }
 
