@@ -35,6 +35,7 @@ export type DriveFile = {
 // ─── room_workflows (The Corridors) ────────────────────────────────────────
 
 export type CorridorRoomSlug =
+  | 'drive-room'
   | 'inventory'
   | 'finance'
   | 'marketing'
