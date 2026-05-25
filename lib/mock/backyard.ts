@@ -29,7 +29,7 @@ export type Milestone = {
 export function getMilestones(): Milestone[] {
   return [
     { id: 'm1', title: 'AED 3M month closed', at: '2026-04-30', category: 'revenue', detail: 'First time crossing AED 3M in a single month. WhatsApp 35% / Shopify 38% / WooCommerce 27%.' },
-    { id: 'm2', title: 'OmniaHouse Phase 1', at: '2026-05-24', category: 'system', detail: 'Repo scaffolded. Three-builder loop in place.' },
+    { id: 'm2', title: 'OmniaHouse Phase 1', at: '2026-05-24', category: 'system', detail: 'Operating room surfaces live. Three-builder loop in place.' },
     { id: 'm3', title: '5,000 customers (cross-store)', at: '2026-04-12', category: 'team', detail: 'Hit 5K unique customer profiles after dedup.' },
     { id: 'm4', title: 'LE Celestial · designed', at: '2026-03-08', category: 'product', detail: 'Final design approved. Limited run of 50.' },
   ];

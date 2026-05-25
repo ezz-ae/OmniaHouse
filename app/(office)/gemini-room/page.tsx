@@ -1,10 +1,10 @@
-import { RoomStub } from '@/components/navigation/room-stub';
+import { RoomWorkspace } from '@/components/navigation/room-workspace';
 
 export default function GeminiRoomPage() {
   return (
-    <RoomStub
+    <RoomWorkspace
       title="Gemini Room"
-      description="Google AI workspace — long-context retrieval over the product catalogue, the WhatsApp transcript archive, and the Drive Room. Pairs with Omnia AI: where Omnia decides what to do, Gemini answers what is in the data."
+      description="Long-context research room for catalogue retrieval, WhatsApp transcript analysis, Drive source sets, and evidence-backed owner briefs."
       shortcuts={[
         { label: 'Omnia AI', href: '/omnia-ai', hint: 'Talk to Omnia AI and to each person\'s assistant.' },
         { label: 'Drive Room', href: '/drive-room', hint: 'Files Gemini will read from.' },

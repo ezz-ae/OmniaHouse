@@ -870,6 +870,169 @@ cells:
               pinIndexColumns: false
               showAggregations: false
               columnAggregations: null
+        - cellType: CODE
+          cellId: 019e57aa-1001-7000-9001-a10000000001
+          cellLabel: Inventory health (stock value, dead stock, depletion)
+          config:
+            source: |-
+              import pandas as pd
+              import numpy as np
+              from datetime import datetime, timezone
+
+              # Stock value per side (price × quantity where available)
+              df_unified["stock_value_aed"] = (
+                  pd.to_numeric(df_unified["price_aed"], errors="coerce")
+                  * pd.to_numeric(df_unified["stock_qty"], errors="coerce").fillna(0)
+              )
+
+              shop_total_value = float(df_unified[df_unified["source"].eq("shopify")]["price_aed"].fillna(0).sum())
+              woo_total_value  = float(df_unified[df_unified["source"].eq("woocommerce")]["stock_value_aed"].fillna(0).sum())
+
+              df_inventory_health = pd.DataFrame([
+                  {"metric": "products_total", "value": int(len(df_parity))},
+                  {"metric": "products_shopify", "value": int(df_parity["on_shopify"].sum())},
+                  {"metric": "products_woocommerce", "value": int(df_parity["on_woocommerce"].sum())},
+                  {"metric": "products_both", "value": int((df_parity["on_shopify"] & df_parity["on_woocommerce"]).sum())},
+                  {"metric": "products_shopify_only", "value": int(df_parity["parity_status"].eq("shopify_only").sum())},
+                  {"metric": "products_woocommerce_only", "value": int(df_parity["parity_status"].eq("woocommerce_only").sum())},
+                  {"metric": "price_drift_count", "value": int(df_parity["parity_status"].eq("both_price_drift").sum())},
+                  {"metric": "stock_value_woocommerce_aed", "value": round(woo_total_value, 2)},
+                  {"metric": "avg_price_aed_shopify", "value": round(float(df_unified[df_unified["source"].eq("shopify")]["price_aed"].dropna().mean() or 0), 2)},
+                  {"metric": "avg_price_aed_woocommerce", "value": round(float(df_unified[df_unified["source"].eq("woocommerce")]["price_aed"].dropna().mean() or 0), 2)},
+                  {"metric": "out_of_stock_woocommerce", "value": int((~df_unified[df_unified["source"].eq("woocommerce")]["in_stock"]).sum())},
+                  {"metric": "out_of_stock_shopify", "value": int((~df_unified[df_unified["source"].eq("shopify")]["in_stock"]).sum())},
+                  {"metric": "low_stock_woocommerce", "value": int((pd.to_numeric(df_unified[df_unified["source"].eq("woocommerce")]["stock_qty"], errors="coerce").fillna(99) <= 3).sum())},
+              ])
+              df_inventory_health
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57aa-1002-7000-9002-a10000000002
+          cellLabel: Category mix and gaps
+          config:
+            source: |-
+              import pandas as pd
+
+              df_category_mix = (
+                  df_unified.dropna(subset=["category_path"])
+                  .groupby(["category_path", "source"], dropna=False)
+                  .size()
+                  .reset_index(name="products")
+                  .pivot_table(index="category_path", columns="source", values="products", fill_value=0)
+                  .reset_index()
+              )
+              df_category_mix["total"] = df_category_mix.select_dtypes("number").sum(axis=1)
+              df_category_mix = df_category_mix.sort_values("total", ascending=False).head(25)
+              df_category_mix
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57aa-1003-7000-9003-a10000000003
+          cellLabel: Restock recommendations (woocommerce stock_qty signal)
+          config:
+            source: |-
+              import pandas as pd
+
+              woo = df_unified[df_unified["source"].eq("woocommerce")].copy()
+              woo["stock_qty_num"] = pd.to_numeric(woo["stock_qty"], errors="coerce")
+              restock = woo[(woo["in_stock"].astype(bool)) & (woo["stock_qty_num"].fillna(99) <= 3)]
+              df_restock_recommendations = (
+                  restock[["master_title", "sku", "price_aed", "stock_qty_num", "permalink"]]
+                  .rename(columns={"stock_qty_num": "remaining_qty"})
+                  .sort_values("remaining_qty")
+                  .head(30)
+              )
+              df_restock_recommendations
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57aa-1004-7000-9004-a10000000004
+          cellLabel: Price drift severity ladder
+          config:
+            source: |-
+              import pandas as pd
+
+              drift = df_parity[df_parity["parity_status"].eq("both_price_drift")].copy()
+              drift["abs_delta_pct"] = drift["price_delta_pct"].abs()
+              drift["severity"] = pd.cut(
+                  drift["abs_delta_pct"],
+                  bins=[0, 2, 5, 10, 25, 1000],
+                  labels=["minor", "low", "medium", "high", "critical"],
+                  include_lowest=True,
+              )
+              df_drift_severity = (
+                  drift.groupby("severity", dropna=False).size().reset_index(name="products")
+              )
+              df_drift_severity
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57aa-1005-7000-9005-a10000000005
+          cellLabel: Limited Edition lifecycle (LE tag based)
+          config:
+            source: |-
+              import pandas as pd
+
+              le_mask = (
+                  df_unified["display_title"].fillna("").str.contains("limited|LE", case=False, regex=True)
+                  | df_unified["category_path"].fillna("").str.contains("limited|LE", case=False, regex=True)
+              )
+              df_le = df_unified[le_mask].copy()
+              df_le_lifecycle = (
+                  df_le.groupby(["source", "in_stock"], dropna=False)
+                  .size()
+                  .reset_index(name="products")
+              )
+              df_le_lifecycle
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57aa-1006-7000-9006-a10000000006
+          cellLabel: Per-store gap (titles missing on the other side)
+          config:
+            source: |-
+              import pandas as pd
+
+              df_per_store_gap = (
+                  df_parity.assign(
+                      gap=lambda d: d["parity_status"].map({
+                          "shopify_only": "missing on .com",
+                          "woocommerce_only": "missing on .ae",
+                          "both_price_drift": "price drift",
+                          "both_match": "match",
+                          "unclassified": "needs review",
+                      })
+                  )
+                  .groupby("gap", dropna=False)
+                  .size()
+                  .reset_index(name="products")
+                  .sort_values("products", ascending=False)
+              )
+              df_per_store_gap
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57aa-1007-7000-9007-a10000000007
+          cellLabel: Persist enriched analysis to exports
+          config:
+            source: |-
+              from pathlib import Path
+              import json
+              import pandas as pd
+
+              exports_dir = Path("exports")
+              exports_dir.mkdir(exist_ok=True)
+
+              bundle = {
+                  "inventory_health": df_inventory_health.to_dict(orient="records"),
+                  "category_mix": df_category_mix.to_dict(orient="records"),
+                  "restock_recommendations": df_restock_recommendations.to_dict(orient="records"),
+                  "drift_severity": df_drift_severity.to_dict(orient="records"),
+                  "le_lifecycle": df_le_lifecycle.to_dict(orient="records"),
+                  "per_store_gap": df_per_store_gap.to_dict(orient="records"),
+                  "parity_counts": df_parity_counts.to_dict(orient="records"),
+                  "top_price_drifts": df_price_drift_top20.to_dict(orient="records"),
+              }
+              (exports_dir / "omnia_inventory_analysis.json").write_text(json.dumps(bundle, indent=2, default=str))
+              df_analysis_outputs = pd.DataFrame([
+                  {"output": "inventory_analysis_json", "path": str(exports_dir / "omnia_inventory_analysis.json"), "sections": len(bundle)}
+              ])
+              df_analysis_outputs
+            dataFrameCell: false
         - cellType: SQL
           cellId: 019e5694-5aa6-7000-86f3-d04d599e8482
           cellLabel: WooCommerce-only products

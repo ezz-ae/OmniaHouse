@@ -1,10 +1,10 @@
-import { RoomStub } from '@/components/navigation/room-stub';
+import { RoomWorkspace } from '@/components/navigation/room-workspace';
 
 export default function CashbackPage() {
   return (
-    <RoomStub
+    <RoomWorkspace
       title="Cashback"
-      description="Customer wallets restricted to Limited Editions, transaction ledger, public customer portal at /portal/[slug] for wallet self-service, and the auto-block flow when fraud risk crosses threshold. Wallet balances are visible per customer inside the WhatsApp Desk drawer."
+      description="Wallet control for earned credit, Limited Edition redemption, customer portal links, fraud holds, and refund-linked ledger rules."
       shortcuts={[
         { label: 'WhatsApp Desk → Customer drawer', href: '/whatsapp-desk', hint: 'Click "Customer" in any chat header to see their wallet balance, ledger, and block toggle.' },
       ]}

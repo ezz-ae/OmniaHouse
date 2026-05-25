@@ -84,8 +84,9 @@ export function getConversations(): Conversation[] {
       messages: [
         { id: 'm1', at: '14:10', from: 'customer', body: 'أبغى طقم العروس من أومنيا، عاجل', language: 'ar' },
         { id: 'm2', at: '14:11', from: 'customer', body: 'بس لازم تخلصه قبل يوم الخميس لأني هسافر', language: 'ar' },
-        { id: 'm3', at: '14:15', from: 'agent', body: 'أهلاً بك! بأي مقاس الخاتم؟', language: 'ar' },
-        { id: 'm4', at: '14:21', from: 'customer', body: 'مقاس 6. عنواني الرياض، حي العليا', language: 'ar' },
+        { id: 'm3', at: '14:13', from: 'customer', body: '[Voice note]', language: 'ar', media: { kind: 'audio', filename: 'voice_arabic_bridal_size.ogg', duration_sec: 28 } },
+        { id: 'm4', at: '14:15', from: 'agent', body: 'أهلاً بك! بأي مقاس الخاتم؟', language: 'ar' },
+        { id: 'm5', at: '14:21', from: 'customer', body: 'مقاس 6. عنواني الرياض، حي العليا', language: 'ar' },
       ],
     },
     {
@@ -102,7 +103,8 @@ export function getConversations(): Conversation[] {
       vibes: { happiness_level: 5, urgency: 'low', fraud_risk: 'low', is_spam: false, business_blockers: null, seniority_needed: 'junior' },
       messages: [
         { id: 'm1', at: '14:16', from: 'customer', body: 'price for moonstone pendant in rose gold?', language: 'en' },
-        { id: 'm2', at: '14:18', from: 'customer', body: 'and is it in stock today?', language: 'en' },
+        { id: 'm2', at: '14:17', from: 'customer', body: '[Voice note]', language: 'en', media: { kind: 'audio', filename: 'voice_size_question.ogg', duration_sec: 14 } },
+        { id: 'm3', at: '14:18', from: 'customer', body: 'and is it in stock today?', language: 'en' },
       ],
     },
     {

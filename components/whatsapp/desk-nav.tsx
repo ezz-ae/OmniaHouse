@@ -1,6 +1,6 @@
 'use client';
 
-import { Inbox, AlertCircle, ShieldAlert, CheckCircle2, FileText, Users, BookOpen, Activity, Settings as SettingsIcon, Sparkles, Flame, Clock, AlertTriangle } from 'lucide-react';
+import { Inbox, AlertCircle, ShieldAlert, CheckCircle2, FileText, Users, BookOpen, Activity, Settings as SettingsIcon, Sparkles, Flame, Clock, AlertTriangle, BarChart3 } from 'lucide-react';
 import type { Conversation } from '@/lib/whatsapp/types';
 
 export type DeskSection =
@@ -12,6 +12,7 @@ export type DeskSection =
   | 'customers'       // browse customers
   | 'templates'       // CRM shortcuts library
   | 'activity'        // ai_extractions log
+  | 'analytics'       // happiness, response rate, pipeline, team performance
   | 'settings';
 
 /**
@@ -60,6 +61,7 @@ export function DeskNav({
     {
       label: 'Admin',
       items: [
+        { id: 'analytics', label: 'Analytics', icon: BarChart3 },
         { id: 'activity', label: 'Activity log', icon: Activity, count: counts.activity },
         { id: 'settings', label: 'Settings', icon: SettingsIcon },
       ],

@@ -10,7 +10,8 @@ import { formatAED } from '@/lib/utils';
 
 export type SlashAction =
   | 'extract' | 'optimize' | 'verify' | 'magazine'
-  | 'tamara'  | 'tabby'    | 'invoice' | 'complete' | 'sync';
+  | 'tamara'  | 'tabby'    | 'invoice' | 'complete' | 'sync'
+  | 'customer' | 'order';
 
 /**
  * Compose — one row, real-sized input, big targets.
@@ -47,9 +48,10 @@ export function MessengerCompose({
     el.style.height = Math.min(el.scrollHeight, 180) + 'px';
   }, [text]);
 
-  // Detect typed "/"
+  // Detect typed slash commands, including product searches such as
+  // "/product crescent" while the agent continues typing the query.
   useEffect(() => {
-    const m = text.match(/(?:^|\s)(\/[a-z0-9_-]*)$/);
+    const m = text.match(/(?:^|\s)(\/[a-z0-9_-]+(?:\s+[^\n]*)?|\/)$/i);
     if (m) {
       setPaletteOpen(true);
       setPaletteQuery(m[1].slice(1));
@@ -73,6 +75,8 @@ export function MessengerCompose({
     { id: 'invoice',  label: '/invoice',  hint: 'Send the Shopify draft invoice to the customer' },
     { id: 'complete', label: '/complete', hint: 'Mark the pushed Shopify draft as paid/complete' },
     { id: 'sync',     label: '/sync',     hint: 'Refresh customer cashback wallet balance' },
+    { id: 'customer', label: '/customer', hint: 'Create or update the unified customer profile' },
+    { id: 'order',    label: '/order',    hint: 'Place an order from the latest extraction' },
     { id: 'magazine', label: '/magazine', hint: 'Post-purchase personalized magazine' },
   ], []);
 
@@ -86,11 +90,11 @@ export function MessengerCompose({
     return m ? m[2].trim() : null;
   }, [paletteQuery]);
 
-  // Live inventory results (fetched from /api/inventory/live).
-  // Falls back to mock catalogue if the live scrape fails or is offline.
+  // Inventory results come from the shared operations catalogue, which can be
+  // populated by live store sync, manual product creation, or local operations.
   const [liveProducts, setLiveProducts] = useState<ProductShare[] | null>(null);
   const [liveLoading, setLiveLoading] = useState(false);
-  const [liveSource, setLiveSource] = useState<'live' | 'mock' | null>(null);
+  const [liveSource, setLiveSource] = useState<'live' | 'local' | null>(null);
   const [liveStats, setLiveStats] = useState<{ total: number; matched: number } | null>(null);
 
   useEffect(() => {
@@ -104,12 +108,12 @@ export function MessengerCompose({
     setLiveLoading(true);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/inventory/live?q=${encodeURIComponent(productMode)}&limit=12`);
+        const res = await fetch(`/api/inventory/products?q=${encodeURIComponent(productMode)}`);
         const json = await res.json();
         if (cancelled) return;
         if (json.ok && Array.isArray(json.products) && json.products.length > 0) {
-          const mapped: ProductShare[] = json.products.map((p: any) => ({
-            sku: p.sku || p.match_key.replace(/^(sku|title):/, ''),
+          const mapped: ProductShare[] = json.products.slice(0, 12).map((p: any) => ({
+            sku: p.master_sku || p.sku || p.match_key?.replace(/^(sku|title):/, ''),
             title: p.display_title,
             category: p.category,
             material: p.material,
@@ -118,25 +122,26 @@ export function MessengerCompose({
             woocommerce_price_aed: p.woocommerce_price_aed,
             shopify_url: p.shopify_url,
             woocommerce_url: p.woocommerce_url,
-            in_stock_anywhere: p.in_stock_anywhere,
+            in_stock_anywhere:
+              p.in_stock_anywhere ??
+              Boolean((p.shopify_qty !== null && p.shopify_qty > 0) || (p.woocommerce_qty !== null && p.woocommerce_qty > 0)),
             is_limited_edition: p.is_limited_edition,
-            source: 'live',
+            source: p.source === 'live' ? 'live' : undefined,
           }));
           setLiveProducts(mapped);
-          setLiveSource('live');
-          setLiveStats({ total: json.stats?.total || 0, matched: json.stats?.matched || mapped.length });
+          setLiveSource(json.products.some((p: any) => p.source === 'live') ? 'live' : 'local');
+          setLiveStats({ total: json.products.length, matched: mapped.length });
         } else {
-          // Fall back to mock when live returns nothing
           const mock = searchProducts(productMode, 12).map((p) => ({ ...p, source: 'mock' as const }));
           setLiveProducts(mock);
-          setLiveSource('mock');
+          setLiveSource('local');
           setLiveStats(null);
         }
       } catch {
         if (cancelled) return;
         const mock = searchProducts(productMode, 12).map((p) => ({ ...p, source: 'mock' as const }));
         setLiveProducts(mock);
-        setLiveSource('mock');
+        setLiveSource('local');
         setLiveStats(null);
       } finally {
         if (!cancelled) setLiveLoading(false);
@@ -231,7 +236,7 @@ export function MessengerCompose({
                 <>
                   {liveLoading ? <Loader2 className="w-3 h-3 animate-spin text-emerald-400" /> :
                     liveSource === 'live' ? <span className="px-1 h-3.5 rounded bg-emerald-500/90 text-zinc-900 font-mono text-2xs flex items-center">LIVE</span> :
-                    liveSource === 'mock' ? <span className="px-1 h-3.5 rounded bg-amber-500/80 text-zinc-900 font-mono text-2xs flex items-center">MOCK</span> : null}
+                    liveSource === 'local' ? <span className="px-1 h-3.5 rounded bg-sky-500/80 text-zinc-900 font-mono text-2xs flex items-center">LOCAL</span> : null}
                   {liveStats && <span className="text-zinc-500 normal-case tracking-normal">· {liveStats.matched} of {liveStats.total}</span>}
                 </>
               )}

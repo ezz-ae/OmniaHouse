@@ -1,23 +1,29 @@
 import { NextResponse } from 'next/server';
-import { getCatalogue, getParitySummary } from '@/lib/inventory/mock';
+import { operationsSnapshot } from '@/lib/operations/store';
 
 /**
  * GET /api/inventory/parity
  *
- * Real mode: reads from `products_unified` + per-store tables, computes
- * parity_status from latest sync, returns summary + drift detail.
- * Mock mode: returns the seed catalogue summary.
+ * Reads the active OmniaHouse product catalogue, computes parity status from
+ * latest sync state, and returns summary + drift detail.
  */
 export async function GET() {
-  const real = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (real) {
-    return NextResponse.json({ ok: false, error: 'real_mode_not_yet_implemented' }, { status: 501 });
-  }
+  const state = await operationsSnapshot();
+  const products = state.products;
   return NextResponse.json({
     ok: true,
-    mode: 'mock',
-    summary: getParitySummary(),
-    drift_detail: getCatalogue()
+    summary: {
+      total: products.length,
+      both_match: products.filter((p) => p.parity_status === 'both_match').length,
+      both_price_drift: products.filter((p) => p.parity_status === 'both_price_drift').length,
+      shopify_only: products.filter((p) => p.parity_status === 'shopify_only').length,
+      woocommerce_only: products.filter((p) => p.parity_status === 'woocommerce_only').length,
+      low_stock: products.filter((p) => [p.shopify_qty, p.woocommerce_qty].some((q) => typeof q === 'number' && q <= 3)).length,
+      limited_editions: products.filter((p) => p.is_limited_edition).length,
+      needs_seo: products.filter((p) => p.seo_status === 'pending').length,
+      needs_shopping_list: products.filter((p) => p.google_shopping_status === 'pending').length,
+    },
+    drift_detail: products
       .filter((p) => p.parity_status === 'both_price_drift')
       .map((p) => ({
         sku: p.master_sku,

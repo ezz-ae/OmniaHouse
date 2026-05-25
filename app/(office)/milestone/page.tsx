@@ -124,8 +124,8 @@ export default function MilestonePage() {
             <Phase
               n="1"
               title="Foundation"
-              state="In progress"
-              body="The shell is in place. The WhatsApp Desk and Inventory are deep — they read live, run AI, and write back. The other rooms are scaffolded and ready to be filled."
+              state="Live surface"
+              body="The House has a working entry, lobby, WhatsApp Desk, Inventory, and operating-room surfaces for commerce, people, intelligence, and admin work. Each room shows queues, signals, approvals, and handoffs."
             />
             <Phase
               n="2"
@@ -208,7 +208,7 @@ function RoomCard({ icon: Icon, name, what }: { icon: any; name: string; what: s
 
 function Phase({ n, title, state, body }: { n: string; title: string; state: string; body: string }) {
   const tone =
-    state === 'In progress' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
+    state === 'Live surface' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
     state === 'Next' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
     state === 'Goal' ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' :
     'bg-zinc-800 text-zinc-400 border-zinc-700';

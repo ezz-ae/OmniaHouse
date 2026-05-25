@@ -18,7 +18,22 @@ export type Message = {
   from: 'customer' | 'agent' | 'system';
   body: string;
   language: Language;
-  media?: { kind: 'image' | 'pdf' | 'audio'; filename: string; verified?: boolean; verification_score?: number };
+  media?: { kind: 'image' | 'pdf' | 'audio'; filename: string; verified?: boolean; verification_score?: number; duration_sec?: number };
+  // Internal attribution: who on the team actually sent this message.
+  // Customer messages have null. Used by analytics, audit, and the bubble label.
+  sent_by_id?: string | null;
+  sent_by_name?: string | null;
+};
+
+export type VoiceTranscription = {
+  message_id: string;
+  filename: string;
+  language: Language;
+  transcript: string;
+  summary: string;
+  intent: string | null;
+  duration_sec: number | null;
+  created_at: string;
 };
 
 export type Conversation = {

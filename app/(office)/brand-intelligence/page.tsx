@@ -1,12 +1,12 @@
-import { RoomStub } from '@/components/navigation/room-stub';
+import { RoomWorkspace } from '@/components/navigation/room-workspace';
 
 export default function BrandIntelligencePage() {
   return (
-    <RoomStub
+    <RoomWorkspace
       title="Brand Intelligence"
-      description="Meta Sentinel (attack detection over ad comments), Behavioral Intelligence (Window Shoppers, Abandoned Luxury, fraud patterns), Ghost Heatmap fed by crm_identity_links, and the brand_intelligence memory feed. The 17 AI prompts that power this room are in prompts/raw-prompts.txt."
+      description="Signal room for Meta Sentinel, behavior intelligence, ghost heatmap, campaign risk, objections, demand, and content handoff."
       shortcuts={[
-        { label: 'Omnia AI', href: '/omnia-ai', hint: 'Ask Omnia for cross-room intelligence today; the dedicated room comes next.' },
+        { label: 'Omnia AI', href: '/omnia-ai', hint: 'Ask Omnia for cross-room intelligence and route approved actions.' },
         { label: 'Inventory Showroom', href: '/inventory', hint: 'Inventory Strategist runs INVENTORY_STRATEGY_PROMPT against live data — same family of intelligence.' },
       ]}
     />

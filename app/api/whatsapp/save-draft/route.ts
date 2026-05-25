@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { placeOrder } from '@/lib/operations/store';
 
 /**
  * POST /api/whatsapp/save-draft
@@ -15,35 +16,42 @@ import { NextResponse } from 'next/server';
  *   assigned_agent_id?: string,
  * }
  *
- * Real mode: insert into order_submissions, update customer_wallets if
- * cashback eligible, push to Shopify draft_orders.json or WooCommerce
- * REST endpoint. Returns the created draft.
- *
- * Mock mode: simulates the persistence + push, returns a fake draft id.
+ * Inserts into the OmniaHouse order submission layer and returns the created
+ * draft/order record used by WhatsApp Desk, Finance, Shipping, and Reports.
  */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const real = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SHOPIFY_ADMIN_TOKEN;
-
-    if (real) {
-      return NextResponse.json({ ok: false, error: 'real_mode_not_yet_implemented' }, { status: 501 });
-    }
-
-    // Mock mode — pretend we saved + pushed.
-    const draftId = `oh_${Math.random().toString(36).slice(2, 10)}`;
+    const result = await placeOrder({
+      customer_phone: body.customer?.phone || body.customer_phone,
+      target_store: body.target_store || 'shopify',
+      lines: (body.items || []).map((item: any) => ({
+        sku: item.sku,
+        title: item.title,
+        qty: item.qty || 1,
+        price_aed: item.price_aed || 0,
+      })),
+      payment_method: body.payment_method,
+      shipping: body.shipping_address || {},
+      notes: [
+        ...(body.labels?.length ? [`labels: ${body.labels.join(', ')}`] : []),
+        ...(body.assigned_agent_id ? [`assignee: ${body.assigned_agent_id}`] : []),
+        ...(body.risk_flags?.length ? [`risk: ${body.risk_flags.join(', ')}`] : []),
+      ],
+    });
     return NextResponse.json({
       ok: true,
-      mode: 'mock',
       draft: {
-        id: draftId,
-        order_submission_id: `os_${Math.random().toString(36).slice(2, 10)}`,
-        pushed_to: body.target_store,
+        id: result.order.id,
+        order_submission_id: result.order.id,
+        pushed_to: result.order.target_store,
         store_admin_url:
-          body.target_store === 'shopify'
-            ? `https://omniastores-ae.myshopify.com/admin/draft_orders/${draftId}`
-            : `https://omniastores.com/wp-admin/admin.php?page=wc-orders&action=edit&id=${draftId}`,
+          result.order.target_store === 'shopify'
+            ? `https://omniastores-ae.myshopify.com/admin/draft_orders/${result.order.platform_ids.shopify_draft || result.order.id}`
+            : `https://omniastores.com/wp-admin/admin.php?page=wc-orders&action=edit&id=${result.order.id}`,
         cashback_credited: body.cashback_earned_aed || 0,
+        customer_id: result.customer.id,
+        total_aed: result.order.total_aed,
       },
     });
   } catch (err: any) {

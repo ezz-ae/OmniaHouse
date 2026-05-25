@@ -252,7 +252,7 @@ function ConversationHeader({ me, other }: { me?: Agent; other: Agent }) {
       <div className="max-w-[780px] mx-auto flex items-center gap-3">
         {/* Me */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-2xs font-medium text-zinc-900" style={{ background: me?.avatar_color || '#C68A4E' }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-2xs font-medium text-zinc-900" style={{ backgroundColor: me?.avatar_color || '#C68A4E' }}>
             {meInitial}
           </div>
           <span className="text-xs text-zinc-400">{me?.short_name || 'You'}</span>
@@ -262,7 +262,7 @@ function ConversationHeader({ me, other }: { me?: Agent; other: Agent }) {
 
         {/* Other */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-zinc-900 shrink-0" style={{ background: isOmnia ? undefined : other.avatar_color, backgroundImage: isOmnia ? 'linear-gradient(135deg, #34d399, #059669)' : undefined }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-zinc-900 shrink-0" style={isOmnia ? { backgroundImage: 'linear-gradient(135deg, #34d399, #059669)' } : { backgroundColor: other.avatar_color }}>
             {isOmnia ? <Sparkles className="w-3.5 h-3.5" /> : otherInitial}
           </div>
           <div className="min-w-0">
@@ -293,7 +293,7 @@ function ConversationLine({ m, me, other }: { m: AgentMessage; me?: Agent; other
 
   return (
     <li className="py-3 flex gap-3">
-      <div className="w-7 h-7 rounded-full flex items-center justify-center text-2xs font-medium text-zinc-900 shrink-0" style={{ background: isOmnia ? undefined : speakerColor, backgroundImage: isOmnia ? 'linear-gradient(135deg, #34d399, #059669)' : undefined }}>
+      <div className="w-7 h-7 rounded-full flex items-center justify-center text-2xs font-medium text-zinc-900 shrink-0" style={isOmnia ? { backgroundImage: 'linear-gradient(135deg, #34d399, #059669)' } : { backgroundColor: speakerColor }}>
         {isOmnia ? <Sparkles className="w-3 h-3" /> : initial}
       </div>
       <div className="flex-1 min-w-0">

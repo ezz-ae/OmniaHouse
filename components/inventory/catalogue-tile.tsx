@@ -1,11 +1,12 @@
 'use client';
 
+import type { KeyboardEvent } from 'react';
 import { cn, formatAED } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
 import { StoreChip } from '@/components/ui/store-chip';
 import type { Product } from '@/lib/inventory/types';
 import { seoScore } from '@/lib/inventory/seo';
-import { Sparkles, Video, Eye, AlertTriangle, Crown } from 'lucide-react';
+import { Sparkles, Video, AlertTriangle, Crown, Pencil, RefreshCw } from 'lucide-react';
 
 /**
  * Visual tile, NOT a table row.
@@ -29,12 +30,16 @@ export function CatalogueTile({
   onClick,
   onSEO,
   onVeo,
+  onEdit,
+  onSync,
 }: {
   p: Product;
   active?: boolean;
   onClick?: () => void;
   onSEO?: () => void;
   onVeo?: () => void;
+  onEdit?: () => void;
+  onSync?: () => void;
 }) {
   const score = seoScore(p);
   const driftSeverity =
@@ -45,16 +50,26 @@ export function CatalogueTile({
         : Math.abs(p.price_delta_pct) < 5
           ? 'mild'
           : 'bad';
+  const openTile = () => onClick?.();
+  const onTileKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openTile();
+    }
+  };
 
   return (
-    <button
-      onClick={onClick}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={openTile}
+      onKeyDown={onTileKeyDown}
       className={cn(
-        'group panel overflow-hidden text-left transition-all hover:border-line-strong hover:-translate-y-0.5',
+        'group panel cursor-pointer overflow-hidden text-left transition-all hover:border-line-strong hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50',
         active && 'border-gold/40 ring-1 ring-gold/30',
       )}
     >
-      {/* Hero — real image when present (live products), gradient fallback (mock) */}
+      {/* Hero — real image when present, gradient fallback otherwise. */}
       <div className="relative h-32 overflow-hidden bg-zinc-800">
         {p.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -98,6 +113,18 @@ export function CatalogueTile({
             >
               <Video className="w-3 h-3" /> Veo
             </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
+              className="h-6 px-2 rounded bg-canvas/80 backdrop-blur border border-line text-2xs text-ink hover:bg-gold/20 flex items-center gap-1"
+            >
+              <Pencil className="w-3 h-3" /> Edit
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onSync?.(); }}
+              className="h-6 px-2 rounded bg-canvas/80 backdrop-blur border border-line text-2xs text-ink hover:bg-gold/20 flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" /> Sync
+            </button>
           </div>
         </div>
       </div>
@@ -137,7 +164,7 @@ export function CatalogueTile({
         </div>
         <SEORing score={score} />
       </div>
-    </button>
+    </div>
   );
 }
 

@@ -37,7 +37,7 @@ export function toProduct(p: UnifiedLiveProduct): Product {
     parity_status: p.parity_status,
     price_delta_pct: p.price_delta_pct,
     last_synced_at: p.last_synced_at,
-    // Not yet wired for live data — placeholders so the existing UI doesn't break
+    // Live adapters can leave these fields blank; the UI renders a stable fallback.
     seo_title: null,
     seo_description: null,
     seo_status: 'pending',

@@ -11,7 +11,24 @@ import { getCatalogue, getParitySummary } from '@/lib/inventory/mock';
 import { toProduct, paritySummaryFromLive } from '@/lib/inventory/live-adapter';
 import { runStrategy } from '@/lib/inventory/strategy';
 import type { Product, ParitySummary } from '@/lib/inventory/types';
-import { Loader2, RefreshCw, Brain, Search, X, Filter } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  Brain,
+  CheckCircle2,
+  Filter,
+  Loader2,
+  PackagePlus,
+  Percent,
+  Pencil,
+  RefreshCw,
+  Search,
+  Sparkles,
+  TrendingUp,
+  UploadCloud,
+  X,
+} from 'lucide-react';
+import type { InventoryAnalysis } from '@/lib/inventory/analysis';
 import { cn } from '@/lib/utils';
 import { DeskTopBar } from '@/components/whatsapp/desk-top-bar';
 
@@ -28,6 +45,19 @@ import { DeskTopBar } from '@/components/whatsapp/desk-top-bar';
 
 const PAGE_SIZE = 60;
 const LIVE_LIMIT = 100; // grid page size, not catalog cap
+type InventoryView = 'catalogue' | 'add' | 'edit' | 'discounts' | 'sync' | 'hex' | 'analysis';
+type CouponRow = {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  applies_to: string;
+  applies_value: string;
+  active: boolean;
+  targets: ('shopify' | 'woocommerce')[];
+  sync_status: Record<'shopify' | 'woocommerce', string>;
+};
+type SyncJobRow = { id: string; kind: string; target: string; status: string; summary: string; created_at: string };
 
 export default function InventoryPage() {
   // Local mock for fast first paint
@@ -40,10 +70,23 @@ export default function InventoryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [source, setSource] = useState<'mock' | 'live'>('mock');
-  const [view, setView] = useState<'catalogue' | 'hex'>('catalogue');
+  const [view, setView] = useState<InventoryView>('catalogue');
+  const [opsProducts, setOpsProducts] = useState<Product[]>([]);
+  const [coupons, setCoupons] = useState<CouponRow[]>([]);
+  const [syncJobs, setSyncJobs] = useState<SyncJobRow[]>([]);
+  const [opsBusy, setOpsBusy] = useState<string | null>(null);
+  const [opsNotice, setOpsNotice] = useState<{ tone: 'good' | 'warn' | 'bad'; text: string } | null>(null);
 
   // Fetch live catalogue on mount
-  useEffect(() => { loadLive(false); }, []);
+  useEffect(() => { loadLive(false); loadOps(); }, []);
+
+  async function loadOps() {
+    const json = await fetch('/api/operations/snapshot').then((r) => r.json()).catch(() => null);
+    if (!json?.ok) return;
+    setOpsProducts(json.products || []);
+    setCoupons(json.coupons || []);
+    setSyncJobs(json.sync_jobs || []);
+  }
 
   async function loadLive(force: boolean) {
     if (force) setRefreshing(true); else setLoadingLive(true);
@@ -116,6 +159,25 @@ export default function InventoryPage() {
     setStock('all'); setPriceRange('all'); setLeOnly(false);
   }
 
+  async function syncProducts(productIds?: string[], target: 'all' | 'shopify' | 'woocommerce' = 'all') {
+    setOpsBusy(`sync-${target}`);
+    setOpsNotice(null);
+    try {
+      const json = await fetch('/api/inventory/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, product_ids: productIds, kind: productIds?.length ? 'product' : 'catalogue' }),
+      }).then((r) => r.json());
+      if (!json.ok) throw new Error(json.error || 'Sync failed');
+      setOpsNotice({ tone: 'good', text: json.job.summary });
+      await loadOps();
+    } catch (err: any) {
+      setOpsNotice({ tone: 'bad', text: err?.message || 'Sync failed' });
+    } finally {
+      setOpsBusy(null);
+    }
+  }
+
   const filteredAll = useMemo(() => {
     let arr = applyParityFilter(products, filter) as Product[];
     if (category !== 'all') arr = arr.filter((p) => p.category === category);
@@ -173,37 +235,78 @@ export default function InventoryPage() {
       <DeskTopBar />
 
       <div className="px-6 md:px-10 lg:px-14 pt-6 pb-24">
-        {/* VIEW SWITCHER — Catalogue (native) vs Hex (analyst notebook) */}
-        <div className="max-w-[1920px] mx-auto mb-3 flex items-center gap-1.5">
-          <button
-            onClick={() => setView('catalogue')}
-            className={cn(
-              'h-8 px-3 rounded-md text-xs border transition-colors',
-              view === 'catalogue'
-                ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
-                : 'border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60',
-            )}
-          >
-            Catalogue
-          </button>
-          <button
-            onClick={() => setView('hex')}
-            className={cn(
-              'h-8 px-3 rounded-md text-xs border transition-colors flex items-center gap-1.5',
-              view === 'hex'
-                ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
-                : 'border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60',
-            )}
-          >
-            Hex view
-            <span className="text-2xs text-zinc-500">· same scrape</span>
-          </button>
+        {/* Inventory operating modes */}
+        <div className="max-w-[1920px] mx-auto mb-3 flex flex-wrap items-center gap-1.5">
+          <InventoryModeButton active={view === 'catalogue'} onClick={() => setView('catalogue')} icon={Search}>Catalogue</InventoryModeButton>
+          <InventoryModeButton active={view === 'add'} onClick={() => setView('add')} icon={PackagePlus}>Add product</InventoryModeButton>
+          <InventoryModeButton active={view === 'edit'} onClick={() => setView('edit')} icon={Pencil}>Edit product</InventoryModeButton>
+          <InventoryModeButton active={view === 'sync'} onClick={() => setView('sync')} icon={UploadCloud}>Sync stores</InventoryModeButton>
+          <InventoryModeButton active={view === 'discounts'} onClick={() => setView('discounts')} icon={Percent}>Discounts</InventoryModeButton>
+          <InventoryModeButton active={view === 'analysis'} onClick={() => setView('analysis')} icon={BarChart3}>Analysis</InventoryModeButton>
+          <InventoryModeButton active={view === 'hex'} onClick={() => setView('hex')} icon={Brain}>Hex view</InventoryModeButton>
         </div>
 
-        {view === 'hex' ? (
+        {opsNotice && (
+          <div className={cn(
+            'max-w-[1920px] mx-auto mb-4 px-3 py-2 rounded border text-xs flex items-center gap-2',
+            opsNotice.tone === 'good' && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+            opsNotice.tone === 'warn' && 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+            opsNotice.tone === 'bad' && 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+          )}>
+            {opsNotice.tone === 'good' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+            {opsNotice.text}
+          </div>
+        )}
+
+        {view === 'analysis' ? (
+          <AnalysisPanel onJumpSku={(sku) => { setActiveSku(sku); setView('catalogue'); }} />
+        ) : view === 'hex' ? (
           <div className="max-w-[1920px] mx-auto">
             <HexEmbed />
           </div>
+        ) : view === 'add' ? (
+          <AddProductPanel
+            busy={opsBusy === 'add-product'}
+            onCreated={(product) => {
+              setProducts((arr) => [product, ...arr.filter((p) => p.master_sku !== product.master_sku)]);
+              setActiveSku(product.master_sku);
+              loadOps();
+              setOpsNotice({ tone: 'good', text: `${product.display_title} created and queued for store sync.` });
+              setView('edit');
+            }}
+            setBusy={setOpsBusy}
+          />
+        ) : view === 'edit' ? (
+          <EditProductPanel
+            products={opsProducts.length ? opsProducts : products}
+            activeSku={activeSku}
+            busy={opsBusy === 'edit-product'}
+            onUpdated={(product) => {
+              setProducts((arr) => arr.map((p) => (p.master_sku === product.master_sku || p.id === product.id ? product : p)));
+              setActiveSku(product.master_sku);
+              loadOps();
+              setOpsNotice({ tone: 'good', text: `${product.display_title} updated.` });
+            }}
+            setBusy={setOpsBusy}
+          />
+        ) : view === 'sync' ? (
+          <SyncPanel
+            activeSku={activeSku}
+            syncJobs={syncJobs}
+            busy={opsBusy}
+            onSync={syncProducts}
+          />
+        ) : view === 'discounts' ? (
+          <DiscountsPanel
+            coupons={coupons}
+            busy={opsBusy === 'discount'}
+            setBusy={setOpsBusy}
+            onCreated={(coupon) => {
+              setCoupons((arr) => [coupon, ...arr.filter((c) => c.id !== coupon.id)]);
+              loadOps();
+              setOpsNotice({ tone: 'good', text: `${coupon.code} synced to discount control.` });
+            }}
+          />
         ) : (
         <>
         {/* PROMINENT SEARCH BAR — big and always visible, with status + actions */}
@@ -337,6 +440,8 @@ export default function InventoryPage() {
                     onClick={() => setActiveSku(p.master_sku)}
                     onSEO={() => setSeoOpen(p)}
                     onVeo={() => setVeoOpen(p)}
+                    onEdit={() => { setActiveSku(p.master_sku); setView('edit'); }}
+                    onSync={() => syncProducts([p.master_sku])}
                   />
                 </div>
               ))}
@@ -411,6 +516,679 @@ export default function InventoryPage() {
 
       <SEODrawer product={seoOpen} open={!!seoOpen} onClose={() => setSeoOpen(null)} />
       <VeoDrawer product={veoOpen} open={!!veoOpen} onClose={() => setVeoOpen(null)} />
+    </div>
+  );
+}
+
+function InventoryModeButton({
+  active,
+  onClick,
+  icon: Icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'h-8 px-3 rounded-md text-xs border transition-colors flex items-center gap-1.5',
+        active
+          ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
+          : 'border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60',
+      )}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {children}
+    </button>
+  );
+}
+
+function AddProductPanel({
+  busy,
+  setBusy,
+  onCreated,
+}: {
+  busy: boolean;
+  setBusy: (v: string | null) => void;
+  onCreated: (p: Product) => void;
+}) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy('add-product');
+    try {
+      const fd = new FormData(event.currentTarget);
+      const payload = productPayload(fd);
+      const json = await fetch('/api/inventory/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json());
+      if (!json.ok) throw new Error(json.error || 'Could not create product');
+      await fetch('/api/inventory/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: 'all', product_ids: [json.product.master_sku], kind: 'product' }),
+      });
+      onCreated(json.product);
+      event.currentTarget.reset();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="max-w-[980px] mx-auto rounded-md border border-zinc-800 bg-zinc-900 p-5">
+      <PanelTitle icon={PackagePlus} title="Add new product" subtitle="Creates the OmniaHouse product record and syncs the product state to Shopify/WooCommerce connectors." />
+      <ProductFields />
+      <div className="mt-5 flex justify-end">
+        <button disabled={busy} className="h-10 px-4 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 disabled:opacity-50 flex items-center gap-2">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
+          Create product and sync
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function EditProductPanel({
+  products,
+  activeSku,
+  busy,
+  setBusy,
+  onUpdated,
+}: {
+  products: Product[];
+  activeSku: string | null;
+  busy: boolean;
+  setBusy: (v: string | null) => void;
+  onUpdated: (p: Product) => void;
+}) {
+  const [selectedSku, setSelectedSku] = useState(activeSku || products[0]?.master_sku || '');
+  useEffect(() => {
+    if (activeSku) setSelectedSku(activeSku);
+  }, [activeSku]);
+  const selected = products.find((p) => p.master_sku === selectedSku) || products[0];
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+    setBusy('edit-product');
+    try {
+      const fd = new FormData(event.currentTarget);
+      const payload = productPayload(fd);
+      const json = await fetch(`/api/inventory/products/${encodeURIComponent(selected.master_sku)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json());
+      if (!json.ok) throw new Error(json.error || 'Could not update product');
+      onUpdated(json.product);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!selected) {
+    return <div className="max-w-[980px] mx-auto rounded-md border border-zinc-800 bg-zinc-900 p-8 text-sm text-zinc-500">No products loaded.</div>;
+  }
+
+  return (
+    <form key={selected.master_sku} onSubmit={submit} className="max-w-[980px] mx-auto rounded-md border border-zinc-800 bg-zinc-900 p-5">
+      <PanelTitle icon={Pencil} title="Edit current product" subtitle="Updates the master product record used by Inventory, WhatsApp sharing, order placement, discounts, and store sync." />
+      <div className="mb-4">
+        <label className="text-2xs uppercase tracking-wider text-zinc-500">Product</label>
+        <select value={selected.master_sku} onChange={(e) => setSelectedSku(e.target.value)} className="mt-1 w-full h-10 rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
+          {products.map((p) => <option key={p.master_sku} value={p.master_sku}>{p.master_sku} · {p.display_title}</option>)}
+        </select>
+      </div>
+      <ProductFields product={selected} />
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={async () => {
+            setBusy('edit-product');
+            try {
+              await fetch('/api/inventory/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target: 'all', product_ids: [selected.master_sku], kind: 'product' }),
+              });
+            } finally {
+              setBusy(null);
+            }
+          }}
+          disabled={busy}
+          className="h-10 px-4 rounded-md border border-zinc-700 text-sm text-zinc-200 hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Sync selected
+        </button>
+        <button disabled={busy} className="h-10 px-4 rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 disabled:opacity-50 flex items-center gap-2">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+          Save product
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DiscountsPanel({
+  coupons,
+  busy,
+  setBusy,
+  onCreated,
+}: {
+  coupons: CouponRow[];
+  busy: boolean;
+  setBusy: (v: string | null) => void;
+  onCreated: (c: CouponRow) => void;
+}) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy('discount');
+    try {
+      const fd = new FormData(event.currentTarget);
+      const payload = {
+        code: String(fd.get('code') || ''),
+        type: fd.get('type'),
+        value: Number(fd.get('value') || 0),
+        applies_to: fd.get('applies_to'),
+        applies_value: String(fd.get('applies_value') || ''),
+        active: fd.get('active') === 'on',
+        targets: ['shopify', 'woocommerce'],
+      };
+      const json = await fetch('/api/inventory/discounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json());
+      if (!json.ok) throw new Error(json.error || 'Could not create coupon');
+      onCreated(json.coupon);
+      event.currentTarget.reset();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="max-w-[1180px] mx-auto grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-4">
+      <form onSubmit={submit} className="rounded-md border border-zinc-800 bg-zinc-900 p-5">
+        <PanelTitle icon={Percent} title="Create discount or coupon" subtitle="Creates an internal coupon and records sync state for Shopify and WooCommerce." />
+        <div className="grid grid-cols-2 gap-3">
+          <Field name="code" label="Code" required placeholder="OMNIA10" />
+          <label className="block">
+            <span className="text-2xs uppercase tracking-wider text-zinc-500">Type</span>
+            <select name="type" className="mt-1 h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
+              <option value="percentage">Percentage</option>
+              <option value="fixed">Fixed AED</option>
+            </select>
+          </label>
+          <Field name="value" label="Value" type="number" required placeholder="10" />
+          <label className="block">
+            <span className="text-2xs uppercase tracking-wider text-zinc-500">Applies to</span>
+            <select name="applies_to" className="mt-1 h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
+              <option value="all">All products</option>
+              <option value="sku">SKU</option>
+              <option value="category">Category</option>
+              <option value="limited_edition">Limited Edition</option>
+            </select>
+          </label>
+          <div className="col-span-2"><Field name="applies_value" label="SKU/category value" placeholder="CR-925-07 or Rings" /></div>
+          <label className="col-span-2 flex items-center gap-2 text-sm text-zinc-300">
+            <input name="active" type="checkbox" defaultChecked className="accent-emerald-500" />
+            Active immediately
+          </label>
+        </div>
+        <button disabled={busy} className="mt-5 h-10 w-full rounded-md bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 disabled:opacity-50 flex items-center justify-center gap-2">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Percent className="w-4 h-4" />}
+          Create coupon and sync
+        </button>
+      </form>
+
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="h-10 px-4 border-b border-zinc-800 flex items-center justify-between">
+          <span className="text-sm font-medium text-zinc-100">Coupons</span>
+          <span className="text-xs text-zinc-500">{coupons.length} records</span>
+        </div>
+        <div className="divide-y divide-zinc-800">
+          {coupons.map((coupon) => (
+            <div key={coupon.id} className="px-4 py-3 grid grid-cols-[1fr_120px_120px_140px] gap-3 items-center text-sm">
+              <div>
+                <div className="text-zinc-100 font-mono">{coupon.code}</div>
+                <div className="text-xs text-zinc-500">{coupon.applies_to} {coupon.applies_value ? `· ${coupon.applies_value}` : ''}</div>
+              </div>
+              <div className="text-zinc-300">{coupon.type === 'percentage' ? `${coupon.value}%` : `AED ${coupon.value}`}</div>
+              <div className={coupon.active ? 'text-emerald-400' : 'text-zinc-500'}>{coupon.active ? 'active' : 'paused'}</div>
+              <div className="text-xs text-zinc-400">{coupon.targets.join(' + ')}</div>
+            </div>
+          ))}
+          {coupons.length === 0 && <div className="px-4 py-10 text-center text-sm text-zinc-500">No coupons yet.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SyncPanel({
+  activeSku,
+  syncJobs,
+  busy,
+  onSync,
+}: {
+  activeSku: string | null;
+  syncJobs: SyncJobRow[];
+  busy: string | null;
+  onSync: (productIds?: string[], target?: 'all' | 'shopify' | 'woocommerce') => Promise<void>;
+}) {
+  return (
+    <div className="max-w-[1180px] mx-auto grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4">
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 p-5">
+        <PanelTitle icon={UploadCloud} title="Sync control" subtitle="Pushes product and catalogue state through the same API contract used by Shopify and WooCommerce connectors." />
+        <div className="space-y-2">
+          <SyncButton busy={busy === 'sync-all'} onClick={() => onSync(undefined, 'all')}>Sync full catalogue</SyncButton>
+          <SyncButton busy={busy === 'sync-shopify'} onClick={() => onSync(undefined, 'shopify')}>Sync Shopify only</SyncButton>
+          <SyncButton busy={busy === 'sync-woocommerce'} onClick={() => onSync(undefined, 'woocommerce')}>Sync WooCommerce only</SyncButton>
+          <SyncButton disabled={!activeSku} busy={busy === 'sync-all'} onClick={() => activeSku && onSync([activeSku], 'all')}>Sync selected SKU</SyncButton>
+        </div>
+        {activeSku && <div className="mt-3 text-xs text-zinc-500">Selected SKU: <span className="font-mono text-zinc-300">{activeSku}</span></div>}
+      </div>
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="h-10 px-4 border-b border-zinc-800 flex items-center justify-between">
+          <span className="text-sm font-medium text-zinc-100">Sync jobs</span>
+          <span className="text-xs text-zinc-500">{syncJobs.length} recent</span>
+        </div>
+        <div className="divide-y divide-zinc-800">
+          {syncJobs.map((job) => (
+            <div key={job.id} className="px-4 py-3 grid grid-cols-[120px_100px_1fr_170px] gap-3 text-sm">
+              <span className="text-zinc-300">{job.kind}</span>
+              <span className="text-zinc-400">{job.target}</span>
+              <span className={job.status === 'completed' ? 'text-emerald-300' : 'text-rose-300'}>{job.summary}</span>
+              <span className="text-xs text-zinc-500 font-mono">{new Date(job.created_at).toLocaleString('en-AE', { hour12: false })}</span>
+            </div>
+          ))}
+          {syncJobs.length === 0 && <div className="px-4 py-10 text-center text-sm text-zinc-500">No sync jobs yet.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductFields({ product }: { product?: Product }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <Field name="master_sku" label="SKU" required defaultValue={product?.master_sku} placeholder="CR-925-07" />
+      <Field name="display_title" label="Product title" required defaultValue={product?.display_title} placeholder="Crescent Ring · 925 Silver" />
+      <Field name="category" label="Category" defaultValue={product?.category || 'Rings'} placeholder="Rings" />
+      <Field name="material" label="Material" defaultValue={product?.material || '925 silver'} placeholder="925 silver" />
+      <Field name="shopify_price_aed" label="Shopify price AED" type="number" defaultValue={product?.shopify_price_aed ?? ''} />
+      <Field name="woocommerce_price_aed" label="WooCommerce price AED" type="number" defaultValue={product?.woocommerce_price_aed ?? ''} />
+      <Field name="shopify_qty" label="Shopify quantity" type="number" defaultValue={product?.shopify_qty ?? ''} />
+      <Field name="woocommerce_qty" label="WooCommerce quantity" type="number" defaultValue={product?.woocommerce_qty ?? ''} />
+      <Field name="shopify_url" label="Shopify URL" defaultValue={product?.shopify_url ?? ''} />
+      <Field name="woocommerce_url" label="WooCommerce URL" defaultValue={product?.woocommerce_url ?? ''} />
+      <Field name="image_url" label="Image URL" defaultValue={product?.image_url ?? ''} />
+      <label className="flex items-center gap-2 pt-6 text-sm text-zinc-300">
+        <input name="is_limited_edition" type="checkbox" defaultChecked={product?.is_limited_edition} className="accent-amber-500" />
+        Limited Edition
+      </label>
+      <div className="md:col-span-2">
+        <Field name="seo_title" label="SEO title" defaultValue={product?.seo_title ?? ''} />
+      </div>
+      <div className="md:col-span-2">
+        <label className="block">
+          <span className="text-2xs uppercase tracking-wider text-zinc-500">SEO description</span>
+          <textarea name="seo_description" defaultValue={product?.seo_description ?? ''} rows={3} className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600" />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function productPayload(fd: FormData) {
+  return {
+    master_sku: String(fd.get('master_sku') || '').trim(),
+    display_title: String(fd.get('display_title') || '').trim(),
+    master_title: String(fd.get('display_title') || '').trim().toLowerCase(),
+    category: String(fd.get('category') || 'Rings'),
+    material: String(fd.get('material') || '925 silver'),
+    is_limited_edition: fd.get('is_limited_edition') === 'on',
+    shopify_price_aed: emptyToNull(fd.get('shopify_price_aed')),
+    woocommerce_price_aed: emptyToNull(fd.get('woocommerce_price_aed')),
+    shopify_qty: emptyToNull(fd.get('shopify_qty')),
+    woocommerce_qty: emptyToNull(fd.get('woocommerce_qty')),
+    shopify_url: emptyStringToNull(fd.get('shopify_url')),
+    woocommerce_url: emptyStringToNull(fd.get('woocommerce_url')),
+    image_url: emptyStringToNull(fd.get('image_url')),
+    seo_title: emptyStringToNull(fd.get('seo_title')),
+    seo_description: emptyStringToNull(fd.get('seo_description')),
+    on_shopify: Boolean(emptyToNull(fd.get('shopify_price_aed')) !== null || emptyStringToNull(fd.get('shopify_url'))),
+    on_woocommerce: Boolean(emptyToNull(fd.get('woocommerce_price_aed')) !== null || emptyStringToNull(fd.get('woocommerce_url'))),
+  };
+}
+
+function emptyToNull(value: FormDataEntryValue | null) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function emptyStringToNull(value: FormDataEntryValue | null) {
+  const raw = String(value ?? '').trim();
+  return raw || null;
+}
+
+function PanelTitle({ icon: Icon, title, subtitle }: { icon: React.ComponentType<{ className?: string }>; title: string; subtitle: string }) {
+  return (
+    <div className="mb-5">
+      <div className="flex items-center gap-2 text-zinc-100">
+        <Icon className="w-4 h-4 text-emerald-400" />
+        <h2 className="text-base font-semibold">{title}</h2>
+      </div>
+      <p className="mt-1 text-sm text-zinc-500 leading-6">{subtitle}</p>
+    </div>
+  );
+}
+
+function Field({
+  name,
+  label,
+  type = 'text',
+  defaultValue,
+  placeholder,
+  required,
+}: {
+  name: string;
+  label: string;
+  type?: string;
+  defaultValue?: string | number | null;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="text-2xs uppercase tracking-wider text-zinc-500">{label}</span>
+      <input
+        name={name}
+        type={type}
+        defaultValue={defaultValue ?? ''}
+        placeholder={placeholder}
+        required={required}
+        className="mt-1 h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-zinc-600"
+      />
+    </label>
+  );
+}
+
+function SyncButton({
+  children,
+  busy,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  busy?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy || disabled}
+      className="w-full h-10 rounded-md border border-zinc-700 bg-zinc-950 text-sm text-zinc-200 hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2"
+    >
+      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+      {children}
+    </button>
+  );
+}
+
+// ─── Analysis panel (Hex notebook output, rendered live) ──────────────────
+
+function AnalysisPanel({ onJumpSku }: { onJumpSku: (sku: string) => void }) {
+  const [data, setData] = useState<InventoryAnalysis | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch('/api/inventory/analysis');
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Failed');
+      setData(json.analysis);
+    } catch (err: any) {
+      setError(err?.message || 'Could not load analysis');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  if (loading && !data) {
+    return (
+      <div className="max-w-[1480px] mx-auto rounded-md border border-zinc-800 bg-zinc-900 p-8 text-sm text-zinc-500 flex items-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Running inventory analysis…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="max-w-[1480px] mx-auto rounded-md border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-300">{error}</div>
+    );
+  }
+  if (!data) return null;
+
+  const health = Object.fromEntries(data.inventory_health.map((m) => [m.metric, m.value]));
+
+  return (
+    <div className="max-w-[1480px] mx-auto space-y-4">
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-base font-semibold text-zinc-100">Inventory analysis</h2>
+          </div>
+          <p className="mt-1 text-sm text-zinc-500">Same cells as the Hex notebook, computed live from the OmniaHouse catalogue + signals + orders.</p>
+        </div>
+        <button onClick={load} className="h-9 px-3 rounded border border-zinc-700 text-xs text-zinc-200 hover:bg-zinc-800 flex items-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5" /> Recompute
+        </button>
+      </div>
+
+      {/* Health metrics grid */}
+      <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        <Stat label="Products" value={String(health.products_total)} tone="zinc" />
+        <Stat label=".ae · .com" value={`${health.products_shopify} · ${health.products_woocommerce}`} tone="sky" />
+        <Stat label="Drift" value={String(health.price_drift_count)} tone="amber" />
+        <Stat label=".ae only" value={String(health.products_shopify_only)} tone="rose" />
+        <Stat label=".com only" value={String(health.products_woocommerce_only)} tone="rose" />
+        <Stat label="LE active" value={String(data.le_lifecycle.reduce((s, r) => s + r.in_stock, 0))} tone="violet" />
+        <Stat label="Out of stock" value={String((health.out_of_stock_shopify as number) + (health.out_of_stock_woocommerce as number))} tone="rose" />
+        <Stat label="Low stock" value={String((health.low_stock_shopify as number) + (health.low_stock_woocommerce as number))} tone="amber" />
+        <Stat label="Avg price .ae" value={`AED ${Number(health.avg_price_aed_shopify || 0).toLocaleString()}`} tone="emerald" />
+        <Stat label="Avg price .com" value={`AED ${Number(health.avg_price_aed_woocommerce || 0).toLocaleString()}`} tone="emerald" />
+        <Stat label="Revenue paid" value={`AED ${Number(health.revenue_paid_aed || 0).toLocaleString()}`} tone="emerald" />
+        <Stat label="AOV" value={`AED ${Number(health.avg_order_value_aed || 0).toLocaleString()}`} tone="sky" />
+      </section>
+
+      {/* Two-column grid for tables */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <AnalysisTable
+          title="Top movers (7d)"
+          subtitle="Best conversion ratios — push, restock, share to recent inquirers."
+          icon={TrendingUp}
+          empty="No movers yet."
+          rows={data.top_movers}
+          columns={[
+            { key: 'sku', label: 'SKU', cls: 'font-mono text-emerald-400 cursor-pointer' },
+            { key: 'display_title', label: 'Title' },
+            { key: 'bought_7d', label: 'Bought', cls: 'numeric text-right' },
+            { key: 'ratio', label: 'Rate', format: (v) => `${(Number(v) * 100).toFixed(1)}%`, cls: 'numeric text-right' },
+            { key: 'signal', label: 'Signal' },
+          ]}
+          onRowClick={(row) => onJumpSku(row.sku)}
+        />
+        <AnalysisTable
+          title="Slow movers (7d)"
+          subtitle="High views, low conversion. Audit content, SEO, or pricing."
+          icon={AlertTriangle}
+          empty="No slow movers."
+          rows={data.slow_movers}
+          columns={[
+            { key: 'sku', label: 'SKU', cls: 'font-mono text-amber-400 cursor-pointer' },
+            { key: 'display_title', label: 'Title' },
+            { key: 'seen_7d', label: 'Seen', cls: 'numeric text-right' },
+            { key: 'bounce_pct', label: 'Bounce', format: (v) => `${v}%`, cls: 'numeric text-right' },
+            { key: 'reason', label: 'Reason' },
+          ]}
+          onRowClick={(row) => onJumpSku(row.sku)}
+        />
+        <AnalysisTable
+          title="Restock recommendations"
+          subtitle="Stock <=3 across the live catalogue."
+          icon={PackagePlus}
+          empty="Stock is healthy."
+          rows={data.restock_recommendations}
+          columns={[
+            { key: 'sku', label: 'SKU', cls: 'font-mono text-rose-400 cursor-pointer' },
+            { key: 'display_title', label: 'Title' },
+            { key: 'remaining_qty', label: 'Left', cls: 'numeric text-right text-rose-300' },
+            { key: 'price_aed', label: 'Price', format: (v) => v ? `AED ${Number(v).toLocaleString()}` : '—', cls: 'numeric text-right' },
+            { key: 'reason', label: 'Reason' },
+          ]}
+          onRowClick={(row) => onJumpSku(row.sku)}
+        />
+        <AnalysisTable
+          title="Demand signals"
+          subtitle="Cross-reference of brand signals + WhatsApp asks + ghost browse."
+          icon={Sparkles}
+          empty="No active demand signals."
+          rows={data.demand_signals}
+          columns={[
+            { key: 'sku', label: 'SKU', cls: 'font-mono text-violet-400 cursor-pointer' },
+            { key: 'display_title', label: 'Title' },
+            { key: 'whatsapp_asks', label: 'WA', cls: 'numeric text-right' },
+            { key: 'ghost_browse', label: 'Ghost', cls: 'numeric text-right' },
+            { key: 'positive_signals', label: '+', cls: 'numeric text-right text-emerald-400' },
+            { key: 'negative_signals', label: '−', cls: 'numeric text-right text-rose-400' },
+            { key: 'recommended_action', label: 'Action' },
+          ]}
+          onRowClick={(row) => onJumpSku(row.sku)}
+        />
+        <AnalysisTable
+          title="Price drift (severity)"
+          subtitle="How many products drift between .ae and .com — by severity band."
+          icon={Percent}
+          empty="No drift."
+          rows={data.drift_severity}
+          columns={[
+            { key: 'severity', label: 'Severity', cls: 'capitalize' },
+            { key: 'pct_range', label: 'Range' },
+            { key: 'products', label: 'Count', cls: 'numeric text-right' },
+          ]}
+        />
+        <AnalysisTable
+          title="Per-store gap"
+          subtitle="Which stores are missing which products."
+          icon={UploadCloud}
+          empty="Stores are aligned."
+          rows={data.per_store_gap}
+          columns={[
+            { key: 'gap', label: 'Gap' },
+            { key: 'products', label: 'Products', cls: 'numeric text-right' },
+          ]}
+        />
+        <AnalysisTable
+          title="Category mix"
+          subtitle="Catalogue distribution by category across both stores."
+          icon={Filter}
+          empty="No categories."
+          rows={data.category_mix.slice(0, 12)}
+          columns={[
+            { key: 'category', label: 'Category' },
+            { key: 'shopify', label: '.ae', cls: 'numeric text-right' },
+            { key: 'woocommerce', label: '.com', cls: 'numeric text-right' },
+            { key: 'total', label: 'Total', cls: 'numeric text-right font-medium' },
+          ]}
+        />
+        <AnalysisTable
+          title="LE lifecycle"
+          subtitle="Limited Edition presence and stock state per store."
+          icon={Sparkles}
+          empty="No LE products."
+          rows={data.le_lifecycle}
+          columns={[
+            { key: 'source', label: 'Source', cls: 'capitalize' },
+            { key: 'in_stock', label: 'In stock', cls: 'numeric text-right text-emerald-300' },
+            { key: 'out_of_stock', label: 'Out', cls: 'numeric text-right text-rose-300' },
+          ]}
+        />
+      </div>
+
+      <div className="text-2xs text-zinc-600 text-right">
+        Generated · {new Date(data.generated_at).toLocaleString('en-AE', { hour12: false })}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone: 'zinc' | 'emerald' | 'amber' | 'rose' | 'sky' | 'violet' }) {
+  const toneCls = tone === 'emerald' ? 'text-emerald-400' : tone === 'amber' ? 'text-amber-400' : tone === 'rose' ? 'text-rose-400' : tone === 'sky' ? 'text-sky-400' : tone === 'violet' ? 'text-violet-400' : 'text-zinc-200';
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2">
+      <div className="text-2xs uppercase tracking-wider text-zinc-500 truncate">{label}</div>
+      <div className={`mt-1 text-base font-semibold tabular-nums ${toneCls}`}>{value}</div>
+    </div>
+  );
+}
+
+function AnalysisTable<T extends Record<string, any>>({
+  title, subtitle, icon: Icon, rows, columns, empty, onRowClick,
+}: {
+  title: string; subtitle: string; icon: React.ComponentType<{ className?: string }>;
+  rows: T[]; empty: string;
+  columns: { key: keyof T & string; label: string; cls?: string; format?: (v: any) => string }[];
+  onRowClick?: (row: T) => void;
+}) {
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <div className="px-4 py-3 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4 text-emerald-400" />
+          <span className="text-sm font-medium text-zinc-100">{title}</span>
+          <span className="ml-auto text-2xs text-zinc-500">{rows.length}</span>
+        </div>
+        <div className="mt-0.5 text-xs text-zinc-500">{subtitle}</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-2xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
+            <tr>
+              {columns.map((c) => (<th key={c.key} className={`px-3 py-2 ${c.cls?.includes('text-right') ? 'text-right' : 'text-left'} font-medium`}>{c.label}</th>))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800">
+            {rows.map((row, idx) => (
+              <tr key={idx} onClick={() => onRowClick?.(row)} className={onRowClick ? 'hover:bg-zinc-800/40 cursor-pointer' : ''}>
+                {columns.map((c) => {
+                  const raw = row[c.key];
+                  const value = c.format ? c.format(raw) : raw === null || raw === undefined ? '—' : String(raw);
+                  return <td key={c.key} className={`px-3 py-2 ${c.cls || 'text-zinc-300'} truncate max-w-[260px]`}>{value}</td>;
+                })}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={columns.length} className="px-3 py-6 text-center text-zinc-500">{empty}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
