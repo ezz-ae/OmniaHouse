@@ -350,6 +350,31 @@ export type ConversationPresence = {
   upsell_count: number;
 };
 
+// ─── Notes (header system, not a room) ────────────────────────────────────
+
+export type NoteAudienceKind = 'individual' | 'role' | 'all';
+export type NoteKind = 'human' | 'ai_to_role' | 'ai_personal' | 'system';
+export type NotePriority = 'low' | 'normal' | 'high';
+
+export type Note = {
+  id: string;
+  from_id: string;            // team_member_id, 'omnia_ai', or 'system'
+  from_name: string;
+  to_member_ids: string[];    // explicit recipients; empty when targeting a role or "all"
+  to_role: TeamRole | null;   // when audience='role' this is the role
+  audience: NoteAudienceKind;
+  audience_label: string;     // human-readable recipient label
+  body: string;
+  kind: NoteKind;
+  priority: NotePriority;
+  tags: string[];
+  created_at: string;
+  read_by: string[];
+  acknowledged_by: string[];
+  reply_to: string | null;
+  source: string;             // 'manual' | 'orchestrator' | 'metric_threshold' | 'integration'
+};
+
 export type AutomationRoom = 'orders' | 'shipping' | 'customers' | 'finance' | 'reports' | 'cashback' | 'brand' | 'gemini' | 'meeting' | 'backyard' | 'cotasking' | 'management' | 'access' | 'team' | 'inventory' | 'whatsapp';
 export type AutomationConfig = {
   key: string;
@@ -406,6 +431,7 @@ export type OperationsState = {
   integrations: IntegrationCheck[];
   automations: Record<string, AutomationConfig>;
   whatsapp_presence: Record<string, ConversationPresence>;
+  notes: Note[];
   audit: AuditEntry[];
   activity: ActivityEntry[];
 };
@@ -912,9 +938,58 @@ function initialState(): OperationsState {
     integrations: seedIntegrationChecks(),
     automations: seedAutomations(),
     whatsapp_presence: seedWhatsappPresence(),
+    notes: seedNotes(),
     audit: [],
     activity: [],
   };
+}
+
+function seedNotes(): Note[] {
+  const t = (offsetMin: number) => new Date(Date.now() - offsetMin * 60 * 1000).toISOString();
+  return [
+    {
+      id: 'note_seed_1', from_id: 'omnia_ai', from_name: 'Omnia AI',
+      to_member_ids: [], to_role: 'owner', audience: 'role', audience_label: 'Owner',
+      body: 'Two high-value orders pending discount approval over the 10% threshold. Aisha M. crescent rings (AED 2,600) and Laila H. LE Celestial (AED 12,400). Both have clean payment proofs.',
+      kind: 'ai_to_role', priority: 'high', tags: ['orders', 'discount'],
+      created_at: t(3), read_by: [], acknowledged_by: [], reply_to: null, source: 'orchestrator',
+    },
+    {
+      id: 'note_seed_2', from_id: 'omnia_ai', from_name: 'Omnia AI',
+      to_member_ids: [], to_role: 'whatsapp_manager', audience: 'role', audience_label: 'WhatsApp managers',
+      body: 'Arslan is sitting at 6 active chats and one bridal voice note from Noura A. is unread for 14 minutes. Worth a hand-off to Abdallah or a manager check-in.',
+      kind: 'ai_to_role', priority: 'normal', tags: ['team_load', 'whatsapp'],
+      created_at: t(8), read_by: [], acknowledged_by: [], reply_to: null, source: 'orchestrator',
+    },
+    {
+      id: 'note_seed_3', from_id: 'omnia_ai', from_name: 'Omnia AI',
+      to_member_ids: [], to_role: 'marketing', audience: 'role', audience_label: 'Marketing',
+      body: 'KSA gift-angle Arabic creative is beating product-first copy by +18% CTR. Worth scaling the budget on this variant ahead of Eid.',
+      kind: 'ai_to_role', priority: 'normal', tags: ['ads', 'ksa'],
+      created_at: t(15), read_by: [], acknowledged_by: [], reply_to: null, source: 'orchestrator',
+    },
+    {
+      id: 'note_seed_4', from_id: 'tm_2', from_name: 'Abdelrahman',
+      to_member_ids: ['tm_3'], to_role: null, audience: 'individual', audience_label: 'Arslan',
+      body: 'Heads up — Aisha M. wants gift wrap on every order from now on. Add it to her profile so we don\'t have to ask each time.',
+      kind: 'human', priority: 'low', tags: ['customer'],
+      created_at: t(40), read_by: ['tm_3'], acknowledged_by: ['tm_3'], reply_to: null, source: 'manual',
+    },
+    {
+      id: 'note_seed_5', from_id: 'tm_0', from_name: 'Mahmoud',
+      to_member_ids: [], to_role: null, audience: 'all', audience_label: 'Everyone',
+      body: 'Eid cashback campaign launches 2026-05-30. Marketing has the brief, sales should be ready for the LE Celestial drop two weeks earlier than usual.',
+      kind: 'human', priority: 'high', tags: ['announcement', 'eid'],
+      created_at: t(60 * 4), read_by: ['tm_1', 'tm_2'], acknowledged_by: ['tm_1'], reply_to: null, source: 'manual',
+    },
+    {
+      id: 'note_seed_6', from_id: 'omnia_ai', from_name: 'Omnia AI',
+      to_member_ids: ['tm_5'], to_role: null, audience: 'individual', audience_label: 'Ahmed',
+      body: 'You have a LE Celestial photoshoot booked for 2026-05-28. Inventory shows the piece is .ae-only and not yet on Google Shopping — coordinate with Mahmoud before the campaign goes live.',
+      kind: 'ai_personal', priority: 'normal', tags: ['photoshoot', 'le'],
+      created_at: t(60 * 6), read_by: [], acknowledged_by: [], reply_to: null, source: 'orchestrator',
+    },
+  ];
 }
 
 function seedWhatsappPresence(): Record<string, ConversationPresence> {
@@ -986,6 +1061,7 @@ function hydrate(parsed: Partial<OperationsState>): OperationsState {
     integrations: parsed.integrations ?? seed.integrations,
     automations: parsed.automations ?? seed.automations,
     whatsapp_presence: parsed.whatsapp_presence ?? seed.whatsapp_presence,
+    notes: parsed.notes ?? seed.notes,
     audit: parsed.audit ?? [],
     activity: parsed.activity ?? [],
   };
@@ -1984,6 +2060,97 @@ export async function updateCustomerProfile(input: { id: string; patch: Partial<
     audit(state, 'customer.updated', customer.id, `Fields: ${Object.keys(input.patch).filter((k) => allowed.includes(k as any)).join(', ')}`, 'operator', 'managers');
     return customer;
   });
+}
+
+// ─── Notes (header system) ─────────────────────────────────────────────
+
+function noteIsForMember(note: Note, memberId: string, memberRole: TeamRole | null): boolean {
+  if (note.audience === 'all') return true;
+  if (note.audience === 'individual') return note.to_member_ids.includes(memberId);
+  if (note.audience === 'role') return note.to_role === memberRole;
+  return false;
+}
+
+export async function listNotes(input: { for_member_id?: string; limit?: number } = {}) {
+  const state = await readState();
+  let notes = state.notes;
+  if (input.for_member_id) {
+    const member = state.team.find((m) => m.id === input.for_member_id);
+    const role = member?.role || null;
+    notes = notes.filter((n) => noteIsForMember(n, input.for_member_id!, role) || n.from_id === input.for_member_id);
+  }
+  return notes.slice(0, input.limit || 100);
+}
+
+export async function createNote(input: {
+  from_id: string;
+  from_name?: string;
+  body: string;
+  audience: NoteAudienceKind;
+  to_member_ids?: string[];
+  to_role?: TeamRole | null;
+  priority?: NotePriority;
+  tags?: string[];
+  kind?: NoteKind;
+  reply_to?: string | null;
+  source?: string;
+}) {
+  return mutate((state) => {
+    const fromMember = state.team.find((m) => m.id === input.from_id);
+    const from_name = input.from_name || fromMember?.name || (input.from_id === 'omnia_ai' ? 'Omnia AI' : 'System');
+    let audience_label = 'Everyone';
+    if (input.audience === 'individual') {
+      const names = (input.to_member_ids || []).map((id) => state.team.find((m) => m.id === id)?.name || id);
+      audience_label = names.join(', ') || 'No one';
+    } else if (input.audience === 'role') {
+      audience_label = input.to_role ? input.to_role.replace(/_/g, ' ') : 'All roles';
+    }
+    const note: Note = {
+      id: id('note'),
+      from_id: input.from_id, from_name,
+      to_member_ids: input.audience === 'individual' ? (input.to_member_ids || []) : [],
+      to_role: input.audience === 'role' ? (input.to_role || null) : null,
+      audience: input.audience, audience_label,
+      body: input.body, kind: input.kind || 'human',
+      priority: input.priority || 'normal',
+      tags: input.tags || [],
+      created_at: now(),
+      read_by: [], acknowledged_by: [],
+      reply_to: input.reply_to || null,
+      source: input.source || 'manual',
+    };
+    state.notes.unshift(note);
+    state.notes = state.notes.slice(0, 500);
+    log(state, 'note.created', note.id, `${from_name} → ${audience_label}: ${note.body.slice(0, 60)}`);
+    return note;
+  });
+}
+
+export async function markNoteRead(input: { note_id: string; member_id: string }) {
+  return mutate((state) => {
+    const note = state.notes.find((n) => n.id === input.note_id);
+    if (!note) throw new Error('Note not found');
+    if (!note.read_by.includes(input.member_id)) note.read_by.push(input.member_id);
+    return note;
+  });
+}
+
+export async function acknowledgeNote(input: { note_id: string; member_id: string }) {
+  return mutate((state) => {
+    const note = state.notes.find((n) => n.id === input.note_id);
+    if (!note) throw new Error('Note not found');
+    if (!note.read_by.includes(input.member_id)) note.read_by.push(input.member_id);
+    if (!note.acknowledged_by.includes(input.member_id)) note.acknowledged_by.push(input.member_id);
+    log(state, 'note.acknowledged', note.id, input.member_id);
+    return note;
+  });
+}
+
+export async function unreadNoteCount(member_id: string): Promise<number> {
+  const state = await readState();
+  const member = state.team.find((m) => m.id === member_id);
+  const role = member?.role || null;
+  return state.notes.filter((n) => noteIsForMember(n, member_id, role) && !n.read_by.includes(member_id)).length;
 }
 
 export async function redeemPerk(input: { perk_id: string; actor: string }) {
