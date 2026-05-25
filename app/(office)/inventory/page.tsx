@@ -15,17 +15,22 @@ import {
   AlertTriangle,
   BarChart3,
   Brain,
+  Camera,
   CheckCircle2,
+  Columns,
+  FileText,
   Filter,
   Loader2,
   PackagePlus,
   Percent,
   Pencil,
   RefreshCw,
+  Scan,
   Search,
   Sparkles,
   TrendingUp,
   UploadCloud,
+  Wand2,
   X,
 } from 'lucide-react';
 import type { InventoryAnalysis } from '@/lib/inventory/analysis';
@@ -45,7 +50,10 @@ import { DeskTopBar } from '@/components/whatsapp/desk-top-bar';
 
 const PAGE_SIZE = 60;
 const LIVE_LIMIT = 100; // grid page size, not catalog cap
-type InventoryView = 'catalogue' | 'add' | 'edit' | 'discounts' | 'sync' | 'hex' | 'analysis';
+type InventoryView =
+  | 'catalogue' | 'add' | 'edit' | 'compare'
+  | 'ai_listing' | 'invoice_scan'
+  | 'discounts' | 'sync' | 'analysis' | 'hex';
 type CouponRow = {
   id: string;
   code: string;
@@ -234,16 +242,34 @@ export default function InventoryPage() {
     <div className="min-h-screen w-full overflow-x-hidden bg-zinc-900 text-zinc-100 font-sans">
       <DeskTopBar />
 
-      <div className="px-6 md:px-10 lg:px-14 pt-6 pb-24">
-        {/* Inventory operating modes */}
-        <div className="max-w-[1920px] mx-auto mb-3 flex flex-wrap items-center gap-1.5">
-          <InventoryModeButton active={view === 'catalogue'} onClick={() => setView('catalogue')} icon={Search}>Catalogue</InventoryModeButton>
-          <InventoryModeButton active={view === 'add'} onClick={() => setView('add')} icon={PackagePlus}>Add product</InventoryModeButton>
-          <InventoryModeButton active={view === 'edit'} onClick={() => setView('edit')} icon={Pencil}>Edit product</InventoryModeButton>
-          <InventoryModeButton active={view === 'sync'} onClick={() => setView('sync')} icon={UploadCloud}>Sync stores</InventoryModeButton>
-          <InventoryModeButton active={view === 'discounts'} onClick={() => setView('discounts')} icon={Percent}>Discounts</InventoryModeButton>
-          <InventoryModeButton active={view === 'analysis'} onClick={() => setView('analysis')} icon={BarChart3}>Analysis</InventoryModeButton>
-          <InventoryModeButton active={view === 'hex'} onClick={() => setView('hex')} icon={Brain}>Hex view</InventoryModeButton>
+      <div className="px-4 sm:px-6 md:px-10 lg:px-14 pt-4 pb-24">
+        {/* Stores room header */}
+        <div className="max-w-[1920px] mx-auto mb-3 flex items-baseline justify-between gap-3">
+          <div>
+            <div className="text-2xs uppercase tracking-wider text-zinc-500">Stores</div>
+            <h1 className="text-xl sm:text-2xl font-semibold text-zinc-100">omniastores.ae · omniastores.com</h1>
+            <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">Both stores in one room — catalogue, parity, AI listings, invoice scan, strategy.</p>
+          </div>
+        </div>
+
+        {/* Grouped internal menu */}
+        <div className="max-w-[1920px] mx-auto mb-4 space-y-1.5">
+          <ModeGroup label="Browse">
+            <InventoryModeButton active={view === 'catalogue'} onClick={() => setView('catalogue')} icon={Search}>Catalogue</InventoryModeButton>
+            <InventoryModeButton active={view === 'compare'} onClick={() => setView('compare')} icon={Columns}>Compare .ae · .com</InventoryModeButton>
+            <InventoryModeButton active={view === 'analysis'} onClick={() => setView('analysis')} icon={BarChart3}>Analysis</InventoryModeButton>
+            <InventoryModeButton active={view === 'hex'} onClick={() => setView('hex')} icon={Brain}>Hex view</InventoryModeButton>
+          </ModeGroup>
+          <ModeGroup label="Edit">
+            <InventoryModeButton active={view === 'add'} onClick={() => setView('add')} icon={PackagePlus}>Add product</InventoryModeButton>
+            <InventoryModeButton active={view === 'edit'} onClick={() => setView('edit')} icon={Pencil}>Edit product</InventoryModeButton>
+            <InventoryModeButton active={view === 'invoice_scan'} onClick={() => setView('invoice_scan')} icon={Camera}>Invoice → Product</InventoryModeButton>
+            <InventoryModeButton active={view === 'ai_listing'} onClick={() => setView('ai_listing')} icon={Wand2}>AI listing editor</InventoryModeButton>
+          </ModeGroup>
+          <ModeGroup label="Operate">
+            <InventoryModeButton active={view === 'sync'} onClick={() => setView('sync')} icon={UploadCloud}>Sync stores</InventoryModeButton>
+            <InventoryModeButton active={view === 'discounts'} onClick={() => setView('discounts')} icon={Percent}>Discounts</InventoryModeButton>
+          </ModeGroup>
         </div>
 
         {opsNotice && (
@@ -260,6 +286,22 @@ export default function InventoryPage() {
 
         {view === 'analysis' ? (
           <AnalysisPanel onJumpSku={(sku) => { setActiveSku(sku); setView('catalogue'); }} />
+        ) : view === 'compare' ? (
+          <ComparePanel onJumpSku={(sku) => { setActiveSku(sku); setView('catalogue'); }} />
+        ) : view === 'ai_listing' ? (
+          <AIListingPanel
+            products={opsProducts.length ? opsProducts : products}
+            activeSku={activeSku}
+            onPickSku={setActiveSku}
+          />
+        ) : view === 'invoice_scan' ? (
+          <InvoiceScanPanel
+            onApplyLine={(line) => {
+              setActiveSku(line.suggested_master_sku);
+              setView('add');
+              setOpsNotice({ tone: 'good', text: `Line "${line.description}" sent to Add Product · review and save.` });
+            }}
+          />
         ) : view === 'hex' ? (
           <div className="max-w-[1920px] mx-auto">
             <HexEmbed />
@@ -1188,6 +1230,464 @@ function AnalysisTable<T extends Record<string, any>>({
             )}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Grouped internal menu helper ─────────────────────────────────────────
+
+function ModeGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <span className="text-2xs uppercase tracking-wider text-zinc-500 w-16 shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 flex-wrap">{children}</div>
+    </div>
+  );
+}
+
+// ─── Compare panel · .ae vs .com per SKU ──────────────────────────────────
+
+type CompareRow = {
+  sku: string; display_title: string; category: string; material: string;
+  image_url: string | null;
+  parity_status: string; price_delta_pct: number | null;
+  shopify: { listed: boolean; price_aed: number | null; qty: number | null; url: string | null };
+  woocommerce: { listed: boolean; price_aed: number | null; qty: number | null; url: string | null };
+};
+type Verdict = { sku: string; drift: string; action: string };
+
+function ComparePanel({ onJumpSku }: { onJumpSku: (sku: string) => void }) {
+  const [skusInput, setSkusInput] = useState('');
+  const [rows, setRows] = useState<CompareRow[]>([]);
+  const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({});
+  const [meta, setMeta] = useState<{ mode?: string; model?: string | null; total?: number; compared?: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load(skus?: string) {
+    setLoading(true); setError(null);
+    try {
+      const url = skus ? `/api/inventory/compare?skus=${encodeURIComponent(skus)}` : '/api/inventory/compare';
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'compare failed');
+      setRows(json.comparisons || []);
+      const v: Record<string, Verdict> = {};
+      for (const item of (json.verdicts || []) as Verdict[]) v[item.sku] = item;
+      setVerdicts(v);
+      setMeta({ mode: json.mode, model: json.model, total: json.total_products, compared: json.compared });
+    } catch (err: any) { setError(err?.message || 'compare failed'); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="max-w-[1480px] mx-auto space-y-4">
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <Columns className="w-4 h-4 text-emerald-400 shrink-0" />
+          <input
+            value={skusInput}
+            onChange={(e) => setSkusInput(e.target.value)}
+            placeholder="Comma-separated SKUs · empty = widest price drifts"
+            className="flex-1 h-10 px-3 rounded border border-zinc-800 bg-zinc-950 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-zinc-600"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => load(skusInput.trim() || undefined)} disabled={loading} className="h-10 px-4 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-sm font-medium hover:bg-emerald-500/20 disabled:opacity-50 flex items-center gap-2">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Compare
+          </button>
+          {meta?.mode && (
+            <span className={`h-10 px-3 rounded border text-2xs uppercase tracking-wider flex items-center ${meta.mode === 'real' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}>
+              {meta.mode === 'real' ? `Gemini · ${meta.model}` : 'rules'}
+            </span>
+          )}
+        </div>
+      </div>
+      {error && <div className="rounded border border-rose-500/30 bg-rose-500/10 text-sm text-rose-300 px-4 py-2">{error}</div>}
+      {meta && (
+        <div className="text-2xs text-zinc-500">
+          Comparing {meta.compared} of {meta.total} products in the live catalogue.
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {rows.map((row) => (
+          <div key={row.sku} className="rounded-md border border-zinc-800 bg-zinc-900 p-3">
+            <div className="flex items-start gap-3">
+              {row.image_url && <img src={row.image_url} alt="" className="w-14 h-14 rounded border border-zinc-800 object-cover shrink-0" />}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-xs text-emerald-400 shrink-0">{row.sku}</span>
+                  <span className="text-2xs text-zinc-500 truncate">{row.category} · {row.material}</span>
+                </div>
+                <div className="text-sm text-zinc-100 truncate">{row.display_title}</div>
+                <div className="mt-1 text-2xs">
+                  <span className={`rounded border px-1.5 py-0.5 ${row.parity_status === 'both_match' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : row.parity_status === 'both_price_drift' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-rose-500/30 bg-rose-500/10 text-rose-300'}`}>
+                    {row.parity_status.replace(/_/g, ' ')}{row.price_delta_pct !== null ? ` · ${row.price_delta_pct.toFixed(1)}%` : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2">
+                <div className="text-2xs uppercase tracking-wider text-zinc-500">omniastores.ae</div>
+                <div className="mt-0.5 text-zinc-100 numeric">{row.shopify.listed ? `AED ${row.shopify.price_aed?.toLocaleString()}` : '—'}</div>
+                <div className="text-2xs text-zinc-500">{row.shopify.qty !== null ? `qty ${row.shopify.qty}` : 'qty hidden'}</div>
+                {row.shopify.url && <a href={row.shopify.url} target="_blank" rel="noreferrer" className="text-2xs text-sky-400 hover:underline">Open →</a>}
+              </div>
+              <div className="rounded border border-zinc-800 bg-zinc-950 px-3 py-2">
+                <div className="text-2xs uppercase tracking-wider text-zinc-500">omniastores.com</div>
+                <div className="mt-0.5 text-zinc-100 numeric">{row.woocommerce.listed ? `AED ${row.woocommerce.price_aed?.toLocaleString()}` : '—'}</div>
+                <div className="text-2xs text-zinc-500">{row.woocommerce.qty !== null ? `qty ${row.woocommerce.qty}` : 'qty hidden'}</div>
+                {row.woocommerce.url && <a href={row.woocommerce.url} target="_blank" rel="noreferrer" className="text-2xs text-sky-400 hover:underline">Open →</a>}
+              </div>
+            </div>
+            {verdicts[row.sku] && (
+              <div className="mt-3 rounded border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs">
+                <div className="text-2xs uppercase tracking-wider text-zinc-500 mb-1">Verdict</div>
+                <div className="text-zinc-200">{verdicts[row.sku].drift}</div>
+                <div className="mt-1 text-emerald-400">→ {verdicts[row.sku].action}</div>
+              </div>
+            )}
+            <div className="mt-3 flex justify-end">
+              <button onClick={() => onJumpSku(row.sku)} className="text-2xs text-zinc-400 hover:text-zinc-100">Open in catalogue →</button>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && !loading && (
+          <div className="col-span-full text-center text-sm text-zinc-500 py-10">No comparisons yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Listing Editor ────────────────────────────────────────────────────
+
+type Listing = {
+  seo_title?: string; seo_description?: string;
+  google_shopping?: { google_product_category?: string; material?: string; gender?: string; age_group?: string };
+  marketing_copy?: string;
+  bullets?: string[];
+  alt_text?: string;
+  tags?: string[];
+};
+
+function AIListingPanel({
+  products, activeSku, onPickSku,
+}: {
+  products: Product[]; activeSku: string | null; onPickSku: (sku: string) => void;
+}) {
+  const [selectedSku, setSelectedSku] = useState(activeSku || products[0]?.master_sku || '');
+  const [locale, setLocale] = useState<'en' | 'ar' | 'both'>('en');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [arabic, setArabic] = useState<Listing | null>(null);
+  const [mode, setMode] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+
+  useEffect(() => { if (activeSku) setSelectedSku(activeSku); }, [activeSku]);
+  const selected = products.find((p) => p.master_sku === selectedSku) || products[0];
+
+  async function generate() {
+    if (!selected) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch('/api/inventory/ai-listing', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product: {
+            sku: selected.master_sku, title: selected.display_title,
+            category: selected.category, material: selected.material,
+            is_limited_edition: selected.is_limited_edition,
+            price_aed: selected.shopify_price_aed || selected.woocommerce_price_aed,
+          },
+          locale,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'failed');
+      setListing(json.listing); setArabic(json.arabic); setMode(json.mode); setModel(json.model);
+    } catch (err: any) { setError(err?.message || 'AI listing failed'); }
+    finally { setBusy(false); }
+  }
+
+  async function applyToProduct() {
+    if (!selected || !listing) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/inventory/products/${encodeURIComponent(selected.master_sku)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seo_title: listing.seo_title,
+          seo_description: listing.seo_description,
+          seo_status: 'optimized',
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'apply failed');
+      onPickSku(selected.master_sku);
+    } catch (err: any) { setError(err?.message || 'apply failed'); }
+    finally { setBusy(false); }
+  }
+
+  if (!selected) {
+    return <div className="max-w-[1180px] mx-auto rounded border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-500">No products loaded.</div>;
+  }
+
+  return (
+    <div className="max-w-[1480px] mx-auto grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4">
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Wand2 className="w-4 h-4 text-emerald-400" />
+          <span className="text-sm font-medium text-zinc-100">AI listing editor</span>
+        </div>
+        <div className="text-xs text-zinc-500 mb-3">Pick a product. Gemini writes SEO title, description, Google Shopping fields, marketing copy, alt text, bullets, and tags. Optionally also in Arabic.</div>
+        <label className="block">
+          <span className="text-2xs uppercase tracking-wider text-zinc-500">Product</span>
+          <select value={selectedSku} onChange={(e) => setSelectedSku(e.target.value)} className="mt-1 w-full h-10 rounded border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
+            {products.slice(0, 200).map((p) => <option key={p.master_sku} value={p.master_sku}>{p.master_sku} · {p.display_title.slice(0, 40)}</option>)}
+          </select>
+        </label>
+        <div className="mt-3 flex gap-1.5">
+          {(['en', 'ar', 'both'] as const).map((l) => (
+            <button key={l} onClick={() => setLocale(l)} className={`flex-1 h-8 rounded border text-2xs uppercase ${locale === l ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-zinc-800 bg-zinc-950 text-zinc-400'}`}>{l}</button>
+          ))}
+        </div>
+        <button onClick={generate} disabled={busy} className="mt-4 h-10 w-full rounded bg-emerald-500 text-zinc-900 text-sm font-medium hover:bg-emerald-400 disabled:opacity-50 flex items-center justify-center gap-2">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          Generate with Gemini
+        </button>
+        {listing && (
+          <button onClick={applyToProduct} disabled={busy} className="mt-2 h-10 w-full rounded border border-zinc-700 text-sm text-zinc-200 hover:bg-zinc-800 flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4" /> Apply to product
+          </button>
+        )}
+        {mode && (
+          <div className="mt-3 text-2xs">
+            <span className={mode === 'real' ? 'text-emerald-400' : 'text-amber-400'}>{mode === 'real' ? `Live · Gemini · ${model}` : 'Rule-based fallback'}</span>
+          </div>
+        )}
+        {error && <div className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 px-2 py-1.5">{error}</div>}
+      </div>
+
+      <div className="space-y-3">
+        {!listing && !busy && (
+          <div className="rounded-md border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-500 text-center">Generate to see Gemini&apos;s draft listing.</div>
+        )}
+        {listing && <ListingCard title="English" listing={listing} />}
+        {arabic && <ListingCard title="Arabic · العربية" listing={arabic} rtl />}
+      </div>
+    </div>
+  );
+}
+
+function ListingCard({ title, listing, rtl }: { title: string; listing: Listing; rtl?: boolean }) {
+  return (
+    <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4" dir={rtl ? 'rtl' : 'ltr'}>
+      <div className="text-2xs uppercase tracking-wider text-zinc-500 mb-2">{title}</div>
+      {listing.seo_title && (
+        <div className="mb-3">
+          <div className="text-2xs uppercase tracking-wider text-zinc-600">SEO title</div>
+          <div className="text-sm text-zinc-100">{listing.seo_title}</div>
+        </div>
+      )}
+      {listing.seo_description && (
+        <div className="mb-3">
+          <div className="text-2xs uppercase tracking-wider text-zinc-600">Meta description</div>
+          <div className="text-sm text-zinc-300">{listing.seo_description}</div>
+        </div>
+      )}
+      {listing.marketing_copy && (
+        <div className="mb-3">
+          <div className="text-2xs uppercase tracking-wider text-zinc-600">Marketing copy</div>
+          <div className="text-sm text-zinc-300 leading-relaxed">{listing.marketing_copy}</div>
+        </div>
+      )}
+      {listing.bullets && listing.bullets.length > 0 && (
+        <div className="mb-3">
+          <div className="text-2xs uppercase tracking-wider text-zinc-600">Selling points</div>
+          <ul className="mt-1 text-sm text-zinc-300 space-y-0.5">{listing.bullets.map((b, i) => <li key={i}>• {b}</li>)}</ul>
+        </div>
+      )}
+      {listing.alt_text && (
+        <div className="mb-3">
+          <div className="text-2xs uppercase tracking-wider text-zinc-600">Image alt</div>
+          <div className="text-sm text-zinc-300 italic">{listing.alt_text}</div>
+        </div>
+      )}
+      {listing.google_shopping && (
+        <div className="mb-3">
+          <div className="text-2xs uppercase tracking-wider text-zinc-600">Google Shopping</div>
+          <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+            {Object.entries(listing.google_shopping).map(([k, v]) => (
+              <div key={k} className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1">
+                <div className="text-2xs text-zinc-500">{k.replace(/_/g, ' ')}</div>
+                <div className="text-zinc-200">{v as string}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {listing.tags && listing.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {listing.tags.map((t) => <span key={t} className="text-2xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">{t}</span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Invoice → Product ────────────────────────────────────────────────────
+
+type InvoiceLine = {
+  description: string; sku: string | null; qty: number;
+  unit_cost: number | null; total_cost: number | null;
+  suggested_master_sku: string; suggested_category: string; suggested_material: string;
+};
+type Invoice = {
+  supplier_name: string; invoice_number: string | null; invoice_date: string | null;
+  currency: string; subtotal: number | null; tax: number | null; total: number | null;
+  line_items: InvoiceLine[];
+};
+
+function InvoiceScanPanel({ onApplyLine }: { onApplyLine: (line: InvoiceLine) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [mode, setMode] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function scan(file: File) {
+    setBusy(true); setError(null);
+    setPreview(URL.createObjectURL(file));
+    try {
+      const reader = new FileReader();
+      const dataUrl: string = await new Promise((res, rej) => {
+        reader.onload = () => res(reader.result as string);
+        reader.onerror = () => rej(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const base64 = dataUrl.split(',')[1];
+      const res = await fetch('/api/inventory/invoice-scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64, mime_type: file.type || 'image/jpeg' }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'scan failed');
+      setInvoice(json.invoice); setMode(json.mode); setModel(json.model);
+    } catch (err: any) { setError(err?.message || 'scan failed'); }
+    finally { setBusy(false); }
+  }
+
+  async function loadSample() {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch('/api/inventory/invoice-scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'sample failed');
+      setInvoice(json.invoice); setMode(json.mode); setModel(json.model);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="max-w-[1280px] mx-auto grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-4">
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Camera className="w-4 h-4 text-emerald-400" />
+          <span className="text-sm font-medium text-zinc-100">Invoice → Product</span>
+        </div>
+        <div className="text-xs text-zinc-500 mb-4">
+          Take a photo of a supplier invoice (or upload one). Gemini Vision reads the line items and prefills the Add Product form per line.
+        </div>
+        <label className="block rounded border-2 border-dashed border-zinc-700 hover:border-emerald-500/50 bg-zinc-950 p-6 text-center cursor-pointer transition-colors">
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) scan(f); }}
+            className="hidden"
+          />
+          {preview ? (
+            <img src={preview} alt="invoice" className="max-h-64 mx-auto rounded" />
+          ) : (
+            <div className="text-zinc-400 flex flex-col items-center gap-2">
+              <Scan className="w-8 h-8 text-zinc-500" />
+              <div className="text-sm">Tap to open camera or pick a photo</div>
+              <div className="text-2xs text-zinc-600">JPG / PNG / HEIC</div>
+            </div>
+          )}
+        </label>
+        <button onClick={loadSample} disabled={busy} className="mt-3 h-9 w-full rounded border border-zinc-700 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2">
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+          Load sample invoice
+        </button>
+        {mode && (
+          <div className="mt-3 text-2xs">
+            <span className={mode === 'real' ? 'text-emerald-400' : 'text-amber-400'}>{mode === 'real' ? `Gemini Vision · ${model}` : 'Sample (no API key or vision failed)'}</span>
+          </div>
+        )}
+        {error && <div className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300 px-2 py-1.5">{error}</div>}
+      </div>
+
+      <div className="rounded-md border border-zinc-800 bg-zinc-900 overflow-hidden">
+        {!invoice ? (
+          <div className="p-10 text-center text-sm text-zinc-500">Scan an invoice to see extracted line items.</div>
+        ) : (
+          <>
+            <div className="px-4 py-3 border-b border-zinc-800">
+              <div className="flex items-baseline justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-zinc-100">{invoice.supplier_name}</div>
+                  <div className="text-2xs text-zinc-500">{invoice.invoice_number} · {invoice.invoice_date}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-zinc-100 numeric">{invoice.currency} {invoice.total?.toLocaleString()}</div>
+                  <div className="text-2xs text-zinc-500">Subtotal {invoice.subtotal?.toLocaleString()} · Tax {invoice.tax?.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+            <table className="w-full text-xs">
+              <thead className="text-2xs uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
+                <tr>
+                  <th className="text-left py-2 px-3">Description</th>
+                  <th className="text-left py-2 px-3">Suggested SKU</th>
+                  <th className="text-left py-2 px-3">Category</th>
+                  <th className="text-left py-2 px-3">Material</th>
+                  <th className="text-right py-2 px-3">Qty</th>
+                  <th className="text-right py-2 px-3">Unit</th>
+                  <th className="text-right py-2 px-3">Total</th>
+                  <th className="text-right py-2 px-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {invoice.line_items.map((line, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2 px-3 text-zinc-200">{line.description}</td>
+                    <td className="py-2 px-3 font-mono text-emerald-400">{line.suggested_master_sku}</td>
+                    <td className="py-2 px-3 text-zinc-400">{line.suggested_category}</td>
+                    <td className="py-2 px-3 text-zinc-400">{line.suggested_material}</td>
+                    <td className="py-2 px-3 text-right text-zinc-300 numeric">{line.qty}</td>
+                    <td className="py-2 px-3 text-right text-zinc-300 numeric">{line.unit_cost ?? '—'}</td>
+                    <td className="py-2 px-3 text-right text-zinc-100 numeric">{line.total_cost ?? '—'}</td>
+                    <td className="py-2 px-3 text-right">
+                      <button onClick={() => onApplyLine(line)} className="h-7 px-2 rounded border border-emerald-500/30 bg-emerald-500/10 text-2xs text-emerald-300 hover:bg-emerald-500/20">
+                        Send to Add Product →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
     </div>
   );

@@ -52,8 +52,8 @@ export const ROOMS: Room[] = [
     description: 'The room +971 56 547 8227 lives in.', badge: { count: 7, tone: 'warn' } },
 
   // Commerce
-  { slug: 'inventory', name: 'Inventory', group: 'commerce', icon: Package,
-    description: 'Catalogue, parity, SEO, strategy.', badge: { count: 3, tone: 'bad' } },
+  { slug: 'inventory', name: 'Stores', group: 'commerce', icon: Package,
+    description: 'Both stores in one room — catalogue, parity, AI listings, invoice scan, strategy.', badge: { count: 3, tone: 'bad' } },
   { slug: 'orders', name: 'Orders', group: 'commerce', icon: ShoppingBag,
     description: 'Cross-channel orders queue.' },
   { slug: 'shipping', name: 'Shipping', group: 'commerce', icon: Truck,
