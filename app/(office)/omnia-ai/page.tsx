@@ -46,22 +46,69 @@ export default function OmniaAIPage() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, active.id]);
 
+  const [lastMode, setLastMode] = useState<'real' | 'mock' | 'mock_fallback' | null>(null);
+  const [lastModel, setLastModel] = useState<string | null>(null);
+
   async function send() {
     if (!draft.trim() || sending) return;
+    const at = new Date().toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: false });
     const userMsg: AgentMessage = {
       id: `u_${Date.now()}`,
       agent_id: active.id,
       from: 'user',
       body: draft,
-      at: new Date().toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      at,
     };
     setExtra((p) => ({ ...p, [active.id]: [...(p[active.id] || []), userMsg] }));
     const text = draft;
     setDraft('');
     setSending(true);
-    await new Promise((r) => setTimeout(r, 500));
-    const reply = mockAgentReply(active, text);
+
+    // Only Omnia is wired to the orchestrator endpoint right now. Teammate
+    // assistants still use deterministic mock replies (their context lives
+    // in lib/agents/mock.ts; the orchestrator prompt is owner-centric).
+    let replyBody: string | null = null;
+    let mode: 'real' | 'mock' | 'mock_fallback' | null = null;
+    let modelName: string | null = null;
+    if (active.id === 'agent_omnia') {
+      try {
+        const res = await fetch('/api/omnia/converse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const json = await res.json();
+        if (json.ok) {
+          replyBody = json.response_message || null;
+          mode = json.mode || (replyBody ? 'real' : 'mock');
+          modelName = json.model || null;
+          // If the orchestrator suggested tasks, surface them inline so the
+          // user can see Omnia routed work, not just "chat".
+          if (Array.isArray(json.new_tasks) && json.new_tasks.length > 0) {
+            const lines = json.new_tasks.map((t: any) => `→ ${t.title} · ${t.assigned_to_skill} · ${t.priority}`).join('\n');
+            replyBody = `${replyBody || ''}${replyBody ? '\n\n' : ''}New tasks:\n${lines}`.trim();
+          }
+        }
+      } catch (err) {
+        // Network error — fall through to mock so the desk never freezes
+      }
+    }
+
+    if (!replyBody) {
+      replyBody = mockAgentReply(active, text).body;
+      mode = mode || 'mock';
+    }
+
+    const reply: AgentMessage = {
+      id: `a_${Date.now()}`,
+      agent_id: active.id,
+      from: 'agent',
+      body: replyBody,
+      at: new Date().toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    };
     setExtra((p) => ({ ...p, [active.id]: [...(p[active.id] || []), reply] }));
+    setLastMode(mode);
+    setLastModel(modelName);
     setSending(false);
   }
 
@@ -86,7 +133,7 @@ export default function OmniaAIPage() {
         />
 
         <main className="flex-1 min-w-0 flex flex-col border-r border-zinc-800">
-          <ConversationHeader me={me} other={active} />
+          <ConversationHeader me={me} other={active} mode={lastMode} model={lastModel} />
 
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto bg-zinc-900">
             <div className="min-h-full flex flex-col justify-end px-6 py-5">
@@ -243,7 +290,13 @@ function AgentButton({
 
 // ─── Conversation header (the "who am I talking to" panel) ────────────────
 
-function ConversationHeader({ me, other }: { me?: Agent; other: Agent }) {
+function ConversationHeader({
+  me, other, mode, model,
+}: {
+  me?: Agent; other: Agent;
+  mode: 'real' | 'mock' | 'mock_fallback' | null;
+  model: string | null;
+}) {
   const isOmnia = other.kind === 'omnia';
   const otherInitial = other.short_name.slice(0, 1).toUpperCase();
   const meInitial = (me?.short_name || 'M').slice(0, 1).toUpperCase();
@@ -271,6 +324,15 @@ function ConversationHeader({ me, other }: { me?: Agent; other: Agent }) {
                 {isOmnia ? 'Omnia AI' : `${other.short_name}'s assistant`}
               </span>
               <span className={`w-1.5 h-1.5 rounded-full ${other.online ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+              {isOmnia && mode && (
+                <span className={`ml-1.5 text-2xs px-1.5 py-0.5 rounded border ${
+                  mode === 'real' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                  : mode === 'mock_fallback' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                  : 'border-zinc-700 bg-zinc-900 text-zinc-400'
+                }`}>
+                  {mode === 'real' ? `Gemini${model ? ` · ${model}` : ''}` : mode === 'mock_fallback' ? 'mock (AI call failed)' : 'mock'}
+                </span>
+              )}
             </div>
             <div className="text-2xs text-zinc-500 truncate">
               {other.skills.slice(0, 3).join(' · ')}

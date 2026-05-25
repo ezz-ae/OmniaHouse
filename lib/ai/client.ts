@@ -26,12 +26,16 @@ export function isAIEnabled(): boolean {
   return !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
 }
 
-/** Default Gemini model when not specified. Flash is fast + cheap. */
-const DEFAULT_MODEL = 'gemini-2.0-flash-exp';
-/** Pro for harder reasoning (Omnia routing, meeting analysis, strategy). */
-const PRO_MODEL = 'gemini-1.5-pro';
-/** Cheap model for short classifications (sentiment). */
-const MINI_MODEL = 'gemini-1.5-flash';
+/**
+ * Current stable Gemini models for SDK @google/generative-ai 0.24.x.
+ * Default is 2.5 Flash (fast + cheap, fits 99% of room calls).
+ * Pro is 2.5 Pro (Omnia orchestration, meeting analysis, strategy).
+ * Mini is 2.5 Flash Lite for short classifications. Override via env:
+ *   GEMINI_DEFAULT_MODEL, GEMINI_PRO_MODEL, GEMINI_MINI_MODEL
+ */
+const DEFAULT_MODEL = process.env.GEMINI_DEFAULT_MODEL || 'gemini-2.5-flash';
+const PRO_MODEL = process.env.GEMINI_PRO_MODEL || 'gemini-2.5-pro';
+const MINI_MODEL = process.env.GEMINI_MINI_MODEL || 'gemini-2.5-flash-lite';
 
 type ModelTier = 'default' | 'pro' | 'mini';
 
@@ -56,18 +60,18 @@ export type AICallOpts = {
   maxTokens?: number;
 };
 
-function pickModel(client: GoogleGenerativeAI, opts: AICallOpts): GenerativeModel {
-  const m = opts.model;
-  let name = DEFAULT_MODEL;
-  if (!m || m === 'default') name = DEFAULT_MODEL;
-  else if (m === 'pro') name = PRO_MODEL;
-  else if (m === 'mini') name = MINI_MODEL;
-  else if (typeof m === 'string' && m.startsWith('gemini')) name = m;
-  else if (typeof m === 'string' && m.startsWith('gpt')) name = DEFAULT_MODEL;  // back-compat
-  else name = DEFAULT_MODEL;
+export function resolveModelName(m?: ModelTier | string): string {
+  if (!m || m === 'default') return DEFAULT_MODEL;
+  if (m === 'pro') return PRO_MODEL;
+  if (m === 'mini') return MINI_MODEL;
+  if (typeof m === 'string' && m.startsWith('gemini')) return m;
+  if (typeof m === 'string' && m.startsWith('gpt')) return DEFAULT_MODEL; // back-compat
+  return DEFAULT_MODEL;
+}
 
+function pickModel(client: GoogleGenerativeAI, opts: AICallOpts): GenerativeModel {
   return client.getGenerativeModel({
-    model: name,
+    model: resolveModelName(opts.model),
     systemInstruction: opts.systemPrompt,
     generationConfig: {
       temperature: opts.temperature ?? 0.2,
@@ -75,6 +79,10 @@ function pickModel(client: GoogleGenerativeAI, opts: AICallOpts): GenerativeMode
       ...(opts.json ? { responseMimeType: 'application/json' } : {}),
     },
   });
+}
+
+export function getModelInventory() {
+  return { default: DEFAULT_MODEL, pro: PRO_MODEL, mini: MINI_MODEL };
 }
 
 /** Call the model. Returns the assistant message text (or null on failure). */

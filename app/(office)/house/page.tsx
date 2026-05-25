@@ -46,6 +46,9 @@ export default function LobbyPage() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
+  const [mode, setMode] = useState<'real' | 'mock' | 'mock_fallback' | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+
   async function send() {
     if (!draft.trim() || sending) return;
     const at = new Date().toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -54,9 +57,45 @@ export default function LobbyPage() {
     const text = draft;
     setDraft('');
     setSending(true);
-    await new Promise((r) => setTimeout(r, 500));
-    const reply = mockAgentReply(omnia, text);
+
+    let body: string | null = null;
+    let resolvedMode: 'real' | 'mock' | 'mock_fallback' | null = null;
+    let resolvedModel: string | null = null;
+    try {
+      const res = await fetch('/api/omnia/converse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        body = json.response_message || null;
+        resolvedMode = json.mode || (body ? 'real' : 'mock');
+        resolvedModel = json.model || null;
+        if (Array.isArray(json.new_tasks) && json.new_tasks.length > 0) {
+          const lines = json.new_tasks.map((t: any) => `→ ${t.title} · ${t.assigned_to_skill} · ${t.priority}`).join('\n');
+          body = `${body || ''}${body ? '\n\n' : ''}New tasks:\n${lines}`.trim();
+        }
+      }
+    } catch {
+      // Network error → fall through to mock
+    }
+
+    if (!body) {
+      body = mockAgentReply(omnia, text).body;
+      resolvedMode = resolvedMode || 'mock';
+    }
+
+    const reply: AgentMessage = {
+      id: `a_${Date.now()}`,
+      agent_id: OMNIA_AGENT_ID,
+      from: 'agent',
+      body,
+      at: new Date().toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    };
     setMessages((arr) => [...arr, reply]);
+    setMode(resolvedMode);
+    setModel(resolvedModel);
     setSending(false);
   }
 
@@ -83,7 +122,7 @@ export default function LobbyPage() {
               <h1 className="text-3xl font-medium text-zinc-100 mb-4 leading-tight tracking-tight">
                 House of Omnia
               </h1>
-              <div className="flex items-center gap-3 text-sm text-zinc-400 leading-relaxed">
+              <div className="flex items-center gap-3 text-sm text-zinc-400 leading-relaxed flex-wrap">
                 <span className="inline-flex items-center gap-2 px-2 h-6 rounded-full border border-emerald-500/30 bg-emerald-500/[0.06]">
                   <span className="relative flex w-1.5 h-1.5">
                     <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60" />
@@ -91,6 +130,15 @@ export default function LobbyPage() {
                   </span>
                   <span className="text-2xs uppercase tracking-wider text-emerald-300">Omnia AI · Online</span>
                 </span>
+                {mode && (
+                  <span className={`text-2xs px-2 h-6 inline-flex items-center rounded-full border ${
+                    mode === 'real' ? 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-300'
+                    : mode === 'mock_fallback' ? 'border-amber-500/30 bg-amber-500/[0.06] text-amber-300'
+                    : 'border-zinc-700 bg-zinc-900 text-zinc-400'
+                  }`}>
+                    {mode === 'real' ? `Gemini${model ? ` · ${model}` : ''}` : mode === 'mock_fallback' ? 'mock (AI failed)' : 'mock (no key)'}
+                  </span>
+                )}
                 <span className="text-zinc-500">Pick a room, or ask a question.</span>
               </div>
             </div>
