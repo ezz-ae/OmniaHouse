@@ -22,7 +22,10 @@ type Cache = {
 };
 
 const TTL_MS = 30 * 60 * 1000;
-const CACHE_FILE = path.join(process.cwd(), '.data', 'inventory-live.json');
+const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const CACHE_FILE = IS_SERVERLESS
+  ? path.join('/tmp', 'omniahouse-inventory-live.json')
+  : path.join(process.cwd(), '.data', 'inventory-live.json');
 
 // Module-level cache + on-disk snapshot. The disk copy survives dev server
 // restarts so we don't re-scrape both stores on every reload.

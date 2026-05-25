@@ -410,7 +410,16 @@ export type OperationsState = {
   activity: ActivityEntry[];
 };
 
-const STORE_FILE = path.join(process.cwd(), '.data', 'operations-store.json');
+// Vercel's serverless filesystem is read-only outside /tmp. On Vercel we
+// persist to /tmp so each warm invocation reuses state; on cold starts (and
+// locally) we fall back to .data/. Either way we always have an in-memory
+// cache so a failed disk write never breaks an API call.
+const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const STORE_FILE = IS_SERVERLESS
+  ? path.join('/tmp', 'omniahouse-operations-store.json')
+  : path.join(process.cwd(), '.data', 'operations-store.json');
+
+let memoryState: OperationsState | null = null;
 
 function now() { return new Date().toISOString(); }
 function id(prefix: string) { return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
@@ -936,14 +945,18 @@ function seedWhatsappPresence(): Record<string, ConversationPresence> {
 // ─── Persistence ──────────────────────────────────────────────────────────
 
 async function readState(): Promise<OperationsState> {
+  // Memory cache wins on warm invocations and keeps every API call non-throwing.
+  if (memoryState) return memoryState;
   try {
     const text = await fs.readFile(STORE_FILE, 'utf-8');
     const parsed = JSON.parse(text) as Partial<OperationsState>;
-    return hydrate(parsed);
+    memoryState = hydrate(parsed);
+    return memoryState;
   } catch {
-    const state = initialState();
-    await writeState(state);
-    return state;
+    memoryState = initialState();
+    // Best-effort write — if the FS is read-only, just keep state in memory.
+    await writeState(memoryState).catch(() => {});
+    return memoryState;
   }
 }
 
@@ -979,8 +992,19 @@ function hydrate(parsed: Partial<OperationsState>): OperationsState {
 }
 
 async function writeState(state: OperationsState) {
-  await fs.mkdir(path.dirname(STORE_FILE), { recursive: true });
-  await fs.writeFile(STORE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  // Update memory cache first so warm requests never see stale state, even
+  // if the disk write fails on a read-only FS.
+  memoryState = state;
+  try {
+    await fs.mkdir(path.dirname(STORE_FILE), { recursive: true });
+    await fs.writeFile(STORE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (err: any) {
+    // EROFS / EACCES / etc. — common on serverless. Memory cache is enough
+    // to keep the operating layer working for the lifetime of the function.
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[ops-store] disk write failed, using in-memory state only:', err?.code || err?.message);
+    }
+  }
 }
 
 async function mutate<T>(fn: (state: OperationsState) => T | Promise<T>) {
