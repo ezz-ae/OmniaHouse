@@ -93,7 +93,7 @@ export function runStrategy(products: Product[]): StrategySuggestion[] {
           signal: snapshot(m),
         });
       }
-      // Shopify-only LE pieces — flag for Google Shopping listing
+      // Limited edition on .ae only — flag for Google Shopping listing
       const isInStock = (p.shopify_qty !== null && p.shopify_qty > 0)
         || (p.woocommerce_qty !== null && p.woocommerce_qty > 0)
         || (p.on_shopify && p.shopify_qty === null);
@@ -107,10 +107,66 @@ export function runStrategy(products: Product[]): StrategySuggestion[] {
           signal: snapshot(m),
         });
       }
+      // Cross-store gap — product only on one side. Decent revenue uplift
+      // when listed on the other. Lower impact than the rules above so it
+      // never crowds out real demand signals.
+      if (p.parity_status === 'shopify_only' && isInStock) {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'LIST_GOOGLE_SHOPPING',
+          reason: `Listed only on omniastores.ae (AED ${p.shopify_price_aed}). Mirroring to omniastores.com captures KSA / GCC traffic.`,
+          impact_score: p.is_limited_edition ? 60 : 45,
+          signal: snapshot(m),
+        });
+      }
+      if (p.parity_status === 'woocommerce_only') {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'LIST_GOOGLE_SHOPPING',
+          reason: `Listed only on omniastores.com (AED ${p.woocommerce_price_aed}). UAE buyers expect it on omniastores.ae.`,
+          impact_score: 50,
+          signal: snapshot(m),
+        });
+      }
+      // Missing image — high bounce risk on a luxury catalogue.
+      if (!p.image_url) {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'OPTIMIZE_CONTENT',
+          reason: 'No product image — luxury buyers bounce instantly without a photo.',
+          impact_score: 70,
+          signal: snapshot(m),
+        });
+      }
+      // Pending SEO — every live product needs an SEO sweep.
+      if (p.seo_status === 'pending' && p.image_url) {
+        suggestions.push({
+          sku: p.master_sku,
+          master_title: p.display_title,
+          action: 'OPTIMIZE_CONTENT',
+          reason: 'SEO title + description not yet optimized. Sweep recommended before Google Shopping list.',
+          impact_score: 35,
+          signal: snapshot(m),
+        });
+      }
     }
   }
 
-  return suggestions.sort((a, b) => b.impact_score - a.impact_score);
+  // Cap so the panel stays readable on the 4,600-product live catalogue.
+  // Sort by impact, dedupe (sku, action), then keep the top 40.
+  const seen = new Set<string>();
+  return suggestions
+    .sort((a, b) => b.impact_score - a.impact_score)
+    .filter((s) => {
+      const key = `${s.sku}:${s.action}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 40);
 }
 
 
