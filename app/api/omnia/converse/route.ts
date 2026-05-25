@@ -66,14 +66,28 @@ export async function POST(req: Request) {
         },
         user_message: message,
       };
-      const result = await callJSON({
+      // Try Flash first — faster and more reliable for chat. If it fails,
+      // fall back to Pro. If both fail, drop to mock (logged in /ai/status).
+      let result = await callJSON({
         systemPrompt: OMNIA_PARTNERSHIP_PROMPT,
         userInput: JSON.stringify(context),
-        model: 'pro',
+        model: 'default',
         temperature: 0.4,
+        maxTokens: 2000,
       });
+      let usedModel = resolveModelName('default');
+      if (!result) {
+        result = await callJSON({
+          systemPrompt: OMNIA_PARTNERSHIP_PROMPT,
+          userInput: JSON.stringify(context),
+          model: 'pro',
+          temperature: 0.4,
+          maxTokens: 2000,
+        });
+        usedModel = resolveModelName('pro');
+      }
       if (result) {
-        return NextResponse.json({ ok: true, mode: 'real', model: resolveModelName('pro'), ...result });
+        return NextResponse.json({ ok: true, mode: 'real', model: usedModel, ...result });
       }
     }
 

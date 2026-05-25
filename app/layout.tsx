@@ -1,7 +1,16 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono, Cormorant_Garamond } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
+
+// Mobile-first viewport — required for any phone to render the UI at the
+// right size. Without this, mobile shows a desktop-zoom-out view.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#0a0a0a',
+};
 
 const sans = Inter({
   subsets: ['latin'],

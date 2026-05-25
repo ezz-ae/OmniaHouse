@@ -79,3 +79,30 @@
     @apply border-t border-line-soft;
   }
 }
+
+/* ─── Mobile · phone-first safety net ──────────────────────────────────────
+   The desktop layout uses fixed multi-column flex shells. On phones we keep
+   the same components but tighten padding, allow long action bars to wrap
+   instead of overflow-hidden, and prevent horizontal page scroll. Tailwind
+   variants stay intact — these rules only fire ≤ 767px. */
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; }
+  body { font-size: 14px; }
+
+  /* DeskTopBar identity selector + dense pill rows should wrap, not clip. */
+  header select, header button { max-width: 100%; }
+
+  /* Room header metrics grid — 3 columns is too tight on phones. */
+  main .grid.grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* Pill / action button rows that need to wrap on small screens. */
+  .mobile-wrap { flex-wrap: wrap; }
+}
+
+/* Tap targets — make small icon buttons easier on touch. */
+@media (pointer: coarse) {
+  button, [role="button"], a { min-height: 32px; }
+  input[type="text"], input[type="search"], input[type="email"], input[type="tel"], textarea, select {
+    font-size: 16px; /* prevents iOS Safari zoom-on-focus */
+  }
+}

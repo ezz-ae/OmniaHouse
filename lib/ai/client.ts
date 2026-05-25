@@ -100,15 +100,32 @@ export async function callAI(opts: AICallOpts): Promise<string | null> {
   }
 }
 
-/** Convenience: call the model and parse JSON, returning null on any failure. */
+/**
+ * Call the model and parse JSON. Forgiving: strips ```json fences, extracts
+ * the largest {...} block, and returns the raw text wrapped in
+ * { response_message: text } as a last resort so chat routes can still
+ * deliver a real Gemini answer instead of falling back to mock.
+ */
 export async function callJSON<T = any>(opts: Omit<AICallOpts, 'json'>): Promise<T | null> {
   const text = await callAI({ ...opts, json: true });
   if (!text) return null;
   try {
     return JSON.parse(text) as T;
-  } catch (err) {
-    console.error('AI JSON parse failed:', err, 'raw:', text?.slice(0, 200));
-    return null;
+  } catch {
+    // 1. Strip ```json … ``` fences
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) {
+      try { return JSON.parse(fenced[1].trim()) as T; } catch {}
+    }
+    // 2. Extract the largest {...} substring
+    const first = text.indexOf('{');
+    const last = text.lastIndexOf('}');
+    if (first !== -1 && last > first) {
+      try { return JSON.parse(text.slice(first, last + 1)) as T; } catch {}
+    }
+    // 3. Last resort — wrap the model's prose so chat routes still answer.
+    console.error('AI JSON parse failed; returning text fallback. raw:', text.slice(0, 200));
+    return { response_message: text.trim(), new_tasks: [], memory_to_save: [], stalled_tasks_update: [] } as T;
   }
 }
 

@@ -43,17 +43,33 @@ export function ResizableColumn({
   const [collapsed, setCollapsed] = useState(startCollapsed);
   const [hydrated, setHydrated] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile detection — drives auto-collapse + full-width expand behaviour.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   // Restore from localStorage on mount (after hydration to avoid SSR mismatch)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = window.localStorage.getItem(storageKey);
+    let hadPref = false;
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
         if (typeof parsed.width === 'number') setWidth(clamp(parsed.width, minWidth, maxWidth));
-        if (typeof parsed.collapsed === 'boolean') setCollapsed(parsed.collapsed);
+        if (typeof parsed.collapsed === 'boolean') { setCollapsed(parsed.collapsed); hadPref = true; }
       } catch {}
+    }
+    // On mobile with no saved preference, start collapsed so the chat is full-width.
+    if (!hadPref && window.matchMedia('(max-width: 767px)').matches) {
+      setCollapsed(true);
     }
     setHydrated(true);
   }, [storageKey, minWidth, maxWidth]);
@@ -120,12 +136,13 @@ export function ResizableColumn({
     );
   }
 
-  // Expanded
+  // Expanded — on mobile the column takes the full viewport so the user
+  // gets a single-pane view; on desktop it uses the resized width.
   return (
     <div
       ref={wrapperRef}
-      className={`shrink-0 relative bg-zinc-900 ${className}`}
-      style={{ width }}
+      className={`shrink-0 relative bg-zinc-900 ${isMobile ? 'absolute inset-0 z-30' : ''} ${className}`}
+      style={{ width: isMobile ? '100vw' : width }}
     >
       {/* The actual content */}
       <div className="h-full w-full overflow-hidden">{children}</div>
