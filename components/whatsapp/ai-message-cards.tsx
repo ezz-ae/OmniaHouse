@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle, Package, ExternalLink, Crown, Send, Link2, Clock } from 'lucide-react';
+import Link from 'next/link';
+import { Sparkles, Zap, ShieldCheck, ShieldAlert, BookOpen, X, Copy, Check, ArrowRight, AlertTriangle, Package, ExternalLink, Crown, Send, Link2, Clock, UserPlus, Loader2, Pencil, Save } from 'lucide-react';
 import { routeForOrder } from '@/lib/whatsapp/routing';
 import { formatAED } from '@/lib/utils';
 import type { Extraction, ReplyOptimization, PaymentVerification, Magazine, CustomerCard } from '@/lib/whatsapp/types';
@@ -32,8 +33,82 @@ export function ExtractCard({
   const [labels, setLabels] = useState<string[]>(card.labels);
   const [assignee, setAssignee] = useState<string | null>('abdelrahman');
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+
+  // Editable customer fields seeded from the extraction.
+  const [custName, setCustName] = useState(data.customer_name || card.display_name || '');
+  const [custPhone, setCustPhone] = useState(data.phone || card.phone);
+  const [custEmail, setCustEmail] = useState('');
+  const [custCountry, setCustCountry] = useState(data.country || card.country || 'AE');
+  const [custLanguage, setCustLanguage] = useState(data.language || card.language_pref || 'en');
+  const [custCity, setCustCity] = useState(data.emirate_or_city || '');
+  const [custType, setCustType] = useState(data.customer_type || 'new');
+  const [custTags, setCustTags] = useState<string[]>(card.labels || []);
+  const [custVip, setCustVip] = useState(!!card.history?.vip_flag);
+  const [custConsent, setCustConsent] = useState(true);
+  const [editingCustomer, setEditingCustomer] = useState(!card.matched);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [savedCustomerId, setSavedCustomerId] = useState<string | null>(card.customer_id);
+  const [savedCustomerName, setSavedCustomerName] = useState<string | null>(card.display_name);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+
   function toggleLabel(l: string) {
     setLabels((arr) => arr.includes(l) ? arr.filter((x) => x !== l) : [...arr, l]);
+  }
+  function toggleTag(t: string) {
+    setCustTags((arr) => arr.includes(t) ? arr.filter((x) => x !== t) : [...arr, t]);
+  }
+
+  async function saveCustomer() {
+    setSavingCustomer(true); setCustomerError(null);
+    try {
+      // Build the payload with the agent-edited values overriding what the
+      // model extracted. We send both an "extraction" object (so the store's
+      // upsert keeps any rich fields like ghost browse hooks) and the
+      // already-edited primitives at the top level.
+      const payload: any = {
+        phone: custPhone,
+        name: custName || undefined,
+        transcript: '',
+        extraction: {
+          ...data,
+          customer_name: custName,
+          phone: custPhone,
+          country: custCountry,
+          language: custLanguage,
+          customer_type: custType,
+          emirate_or_city: custCity || null,
+        },
+      };
+      let res = await fetch('/api/customers/unify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json());
+      if (!res.ok) throw new Error(res.error || 'Could not save customer');
+      const created = res.customer;
+
+      // Second pass — patch the fields the upsert can't set directly
+      // (email, city, tags, vip, marketing_consent) using the new
+      // PATCH /api/customers/unify route.
+      const patch = await fetch('/api/customers/unify', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: created.id,
+          email: custEmail || null,
+          city: custCity || null,
+          tags: custTags,
+          vip: custVip,
+          marketing_consent: custConsent,
+        }),
+      }).then((r) => r.json()).catch(() => null);
+      const finalCustomer = patch?.customer || created;
+      setSavedCustomerId(finalCustomer.id);
+      setSavedCustomerName(finalCustomer.name);
+      setEditingCustomer(false);
+    } catch (err: any) {
+      setCustomerError(err?.message || 'Failed');
+    } finally {
+      setSavingCustomer(false);
+    }
   }
   const total = data.selected_products.reduce((s, p) => s + (p.price_aed || 0) * p.qty, 0);
   const routing = data.selected_products.length > 0
@@ -70,6 +145,88 @@ export function ExtractCard({
           ))}
         </div>
       )}
+
+      {/* ─── Customer information (editable · saves to CRM) ────────────── */}
+      <div className="mb-3 pb-3 border-b border-zinc-700">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+            <UserPlus className="w-3 h-3" /> Customer information
+          </div>
+          {savedCustomerId && !editingCustomer && (
+            <button onClick={() => setEditingCustomer(true)} className="h-6 px-2 rounded border border-zinc-700 text-2xs text-zinc-300 hover:text-zinc-100 flex items-center gap-1">
+              <Pencil className="w-3 h-3" /> Edit
+            </button>
+          )}
+        </div>
+
+        {!editingCustomer && savedCustomerId ? (
+          <div className="rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-zinc-100 font-medium truncate">{savedCustomerName || custName}</div>
+                <div className="text-2xs text-zinc-500 truncate font-mono">{savedCustomerId} · {custPhone}</div>
+              </div>
+              <Link href={`/customers/${savedCustomerId}`} className="h-7 px-2 rounded border border-emerald-500/30 bg-emerald-500/10 text-2xs text-emerald-300 hover:bg-emerald-500/20 flex items-center gap-1 shrink-0">
+                Open profile <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="mt-1 text-2xs text-zinc-500">
+              {custCountry} · {custLanguage} · {custType}{custCity ? ` · ${custCity}` : ''}{custVip ? ' · VIP' : ''}{!custConsent ? ' · marketing opt-out' : ''}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Name" value={custName} onChange={setCustName} placeholder="Customer name" />
+            <Field label="Phone" value={custPhone} onChange={setCustPhone} placeholder="+9715..." />
+            <Field label="Email" value={custEmail} onChange={setCustEmail} placeholder="optional" />
+            <Field label="City" value={custCity} onChange={setCustCity} placeholder="Dubai · Riyadh ..." />
+            <Select label="Country" value={custCountry} onChange={(v) => setCustCountry(v as any)} options={['AE', 'SA', 'KW', 'BH', 'QA', 'OM', 'OTHER']} />
+            <Select label="Language" value={custLanguage} onChange={(v) => setCustLanguage(v as any)} options={['en', 'ar', 'mixed']} />
+            <Select label="Customer type" value={custType} onChange={(v) => setCustType(v as any)} options={['new', 'returning', 'vip']} />
+            <div className="flex items-end gap-3 text-xs">
+              <label className="flex items-center gap-1.5 text-zinc-300 cursor-pointer">
+                <input type="checkbox" checked={custVip} onChange={(e) => setCustVip(e.target.checked)} className="accent-violet-500" />
+                VIP
+              </label>
+              <label className="flex items-center gap-1.5 text-zinc-300 cursor-pointer">
+                <input type="checkbox" checked={custConsent} onChange={(e) => setCustConsent(e.target.checked)} className="accent-emerald-500" />
+                Marketing opt-in
+              </label>
+            </div>
+            <div className="col-span-2">
+              <div className="text-2xs uppercase tracking-wider text-zinc-500 mb-1">Tags</div>
+              <div className="flex flex-wrap gap-1">
+                {LABEL_OPTIONS.map((t) => {
+                  const on = custTags.includes(t);
+                  return (
+                    <button
+                      key={t} onClick={() => toggleTag(t)}
+                      className={`h-6 px-2 text-2xs rounded border ${on ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'}`}
+                    >
+                      {t.replace(/_/g, ' ')}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="col-span-2 flex items-center justify-end gap-2 mt-1">
+              {customerError && <span className="text-2xs text-rose-300 mr-auto">{customerError}</span>}
+              {savedCustomerId && (
+                <button onClick={() => setEditingCustomer(false)} className="h-8 px-3 rounded border border-zinc-700 text-xs text-zinc-300 hover:bg-zinc-800">
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={saveCustomer} disabled={savingCustomer || !custName.trim() || !custPhone.trim()}
+                className="h-8 px-3 rounded border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {savingCustomer ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                {savedCustomerId ? 'Update profile' : 'Save customer profile'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Items */}
       {data.selected_products.length > 0 && (
@@ -535,5 +692,31 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
       {c ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
       {label}
     </button>
+  );
+}
+
+function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <label className="block">
+      <span className="text-2xs uppercase tracking-wider text-zinc-500">{label}</span>
+      <input
+        value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="mt-1 h-8 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-zinc-600"
+      />
+    </label>
+  );
+}
+
+function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <label className="block">
+      <span className="text-2xs uppercase tracking-wider text-zinc-500">{label}</span>
+      <select
+        value={value} onChange={(e) => onChange(e.target.value)}
+        className="mt-1 h-8 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100"
+      >
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
   );
 }

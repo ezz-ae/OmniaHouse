@@ -189,11 +189,10 @@ export default function WhatsAppDeskPage() {
         }).then((r) => r.json()).catch(() => null);
         const data = res?.extraction || mockExtract(active);
         addTurn({ kind: 'extract', at: now(), data });
-        try {
-          await ensureCustomerProfile(data);
-        } catch (err: any) {
-          addTurn({ kind: 'system', at: now(), data: { text: err?.message || 'Customer profile sync failed.', tone: 'warn' } });
-        }
+        // Do NOT auto-create the customer profile. The extract card now has
+        // an editable Customer Information section + a "Save customer
+        // profile" button so the agent can fix the name/phone/country/etc.
+        // before it lands in the CRM.
         if (res?.mode === 'real') addTurn({ kind: 'system', at: now(), data: { text: `via ${res.model}`, tone: 'info' } });
       } else if (action === 'optimize') {
         const last = active.messages.filter((m) => m.from === 'agent').slice(-1)[0]?.body || '';
