@@ -49,9 +49,15 @@ type ConvPresence = {
  */
 
 export default function WhatsAppDeskPage() {
-  const baseConversations = useMemo(() => getConversations(), []);
+  // The Desk now fetches conversations from /api/whatsapp/conversations
+  // (Supabase-backed when OMNIA_ORG_ID is set, mock fallback otherwise).
+  // The mock seed is the cold-start placeholder so the page renders
+  // immediately while the first fetch is in flight.
+  const seedConversations = useMemo(() => getConversations(), []);
+  const [baseConversations, setBaseConversations] = useState<Conversation[]>(seedConversations);
+  const [conversationsSource, setConversationsSource] = useState<'live' | 'mock'>('mock');
   const [section, setSection] = useState<DeskSection>('inbox');
-  const [activeId, setActiveId] = useState(baseConversations[0].id);
+  const [activeId, setActiveId] = useState(seedConversations[0].id);
   const [extraTurns, setExtraTurns] = useState<Record<string, Turn[]>>({});
   const [busy, setBusy] = useState<SlashAction | null>(null);
   const [currentAgentId, setCurrentAgentId] = useState<string>('tm_2'); // Abdelrahman by default
@@ -61,16 +67,36 @@ export default function WhatsAppDeskPage() {
 
   const currentAgent = TEAM.find((m) => m.id === currentAgentId) || TEAM[2];
 
-  // Fetch presence for all conversations
-  const refreshPresence = useCallback(async () => {
+  // Fetch the inbox + presence overlay together. The API enriches each
+  // conversation with the in-memory presence map (claim TTL, recent
+  // outgoing) so we get both in a single round-trip.
+  const refreshConversations = useCallback(async () => {
     const res = await fetch('/api/whatsapp/conversations').then((r) => r.json()).catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok || !Array.isArray(res.conversations)) return;
     const map: Record<string, ConvPresence> = {};
-    for (const c of res.conversations || []) if (c.presence) map[c.id] = c.presence;
+    const bare: Conversation[] = [];
+    for (const c of res.conversations) {
+      if (c.presence) map[c.id] = c.presence;
+      // Strip the presence overlay before storing the Conversation itself.
+      const { presence, ...rest } = c;
+      bare.push(rest as Conversation);
+    }
+    setBaseConversations(bare.length ? bare : seedConversations);
     setPresenceMap(map);
-  }, []);
+    if (res.source === 'live' || res.source === 'mock') setConversationsSource(res.source);
+  }, [seedConversations]);
 
-  useEffect(() => { refreshPresence(); }, [refreshPresence]);
+  // First load + poll every 15s so new inbound messages appear without
+  // the agent reloading the page. The poll is light: just the list +
+  // most-recent N messages per conversation.
+  useEffect(() => {
+    refreshConversations();
+    const t = setInterval(refreshConversations, 15_000);
+    return () => clearInterval(t);
+  }, [refreshConversations]);
+
+  // Backwards-compat: existing handlers below call refreshPresence().
+  const refreshPresence = refreshConversations;
 
   const filtered = useMemo(() => {
     switch (section) {
@@ -468,7 +494,7 @@ export default function WhatsAppDeskPage() {
           collapsedLabel="WhatsApp Desk"
           className="border-r border-zinc-800"
         >
-          <DeskNav section={section} conversations={baseConversations} onChange={setSection} />
+          <DeskNav section={section} conversations={baseConversations} onChange={setSection} source={conversationsSource} />
         </ResizableColumn>
 
         <main className="flex-1 min-w-0 flex">

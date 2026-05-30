@@ -23,6 +23,7 @@ type PlatformResult = {
 type ApiResponse = {
   ok: boolean;
   profile?: UnifiedProfile;
+  source?: 'live' | 'mock';
   platforms?: { shopify: PlatformResult; woocommerce: PlatformResult };
   integration_status?: { shopify_configured: boolean; woocommerce_configured: boolean };
   error?: string;
@@ -107,6 +108,9 @@ export default function CustomerProfilePage() {
         <Link href="/customers" className="hover:text-zinc-100">Customers</Link>
         <span className="text-zinc-600">/</span>
         <span className="text-zinc-100">{p.customer.name}</span>
+        <span className={`ml-2 text-2xs px-1.5 py-0.5 rounded border ${data.source === 'live' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}>
+          {data.source === 'live' ? 'Supabase · live' : 'mock seed'}
+        </span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={load} className="h-8 px-3 rounded border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 hover:text-zinc-100 flex items-center gap-2">
             <RefreshCw className="w-3.5 h-3.5" /> Refresh

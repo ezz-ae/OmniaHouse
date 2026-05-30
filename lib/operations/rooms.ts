@@ -1448,8 +1448,60 @@ function buildGeneric(state: OperationsState, title: string, description: string
 
 // ─── Entry point ──────────────────────────────────────────────────────────
 
+// Best-effort overlay: merge Supabase customers on top of the in-memory
+// state.customers for room builders that read it (Customers, Reports,
+// Brand cross-references). The operations store still owns orders,
+// signals, wallet, follow-ups until those slices land, but the customer
+// row itself is now the system of record in Postgres.
+async function overlayLiveCustomers(state: any): Promise<any> {
+  try {
+    const { isCustomersLiveAvailable, listCustomersLive } = await import('@/lib/customers/queries');
+    if (!isCustomersLiveAvailable()) return state;
+    const live = await listCustomersLive({ limit: 500 });
+    if (!live || live.length === 0) return state;
+    const merged = new Map<string, any>();
+    for (const c of state.customers || []) merged.set(c.phone, c);
+    for (const row of live) {
+      merged.set(row.phone, {
+        id: row.id,
+        name: row.name || `Customer ${row.phone.slice(-4)}`,
+        phone: row.phone,
+        whatsapp_number: row.whatsapp_number || row.phone,
+        email: row.email,
+        country: row.country || 'AE',
+        language: row.language || 'en',
+        source: row.source || 'whatsapp',
+        platform_ids: {
+          shopify: row.shopify_customer_id || undefined,
+          woocommerce: row.woocommerce_customer_id || undefined,
+          whatsapp: row.whatsapp_wa_id || undefined,
+        },
+        tags: row.tags || [],
+        ltv_aed: Number(row.ltv_aed) || 0,
+        orders_count: row.orders_count || 0,
+        last_order_at: row.last_order_at,
+        marketing_consent: row.marketing_consent,
+        finance_flags: row.finance_flags || [],
+        vip: row.vip,
+        city: row.city,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      });
+    }
+    return { ...state, customers: Array.from(merged.values()) };
+  } catch {
+    return state;
+  }
+}
+
 export async function getRoomData(title: string, description: string): Promise<RoomData> {
-  const state = await operationsSnapshot();
+  let state = await operationsSnapshot();
+  // The Customers, Reports, and Brand rooms all index over state.customers.
+  // Overlaying the live rows means the moment Postgres has customers, the
+  // room reflects them — without rewiring every aggregator individually.
+  if (title === 'Customers' || title === 'Reports' || title === 'Brand Intelligence' || title === 'Cashback') {
+    state = await overlayLiveCustomers(state);
+  }
   switch (title) {
     case 'Orders': return buildOrdersRoom(state);
     case 'Shipping': return buildShippingRoom(state);

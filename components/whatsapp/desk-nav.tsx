@@ -24,10 +24,12 @@ export function DeskNav({
   section,
   conversations,
   onChange,
+  source,
 }: {
   section: DeskSection;
   conversations: Conversation[];
   onChange: (s: DeskSection) => void;
+  source?: 'live' | 'mock';
 }) {
   const counts = {
     inbox: conversations.length,
@@ -71,7 +73,14 @@ export function DeskNav({
   return (
     <aside className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-900 flex flex-col">
       <div className="px-4 py-3 border-b border-zinc-800">
-        <div className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">WhatsApp Desk</div>
+        <div className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5 flex items-center gap-2">
+          WhatsApp Desk
+          {source && (
+            <span className={`ml-auto text-2xs px-1.5 py-0.5 rounded border ${source === 'live' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-zinc-700 bg-zinc-900 text-zinc-400'}`}>
+              {source === 'live' ? 'Supabase · live' : 'mock seed'}
+            </span>
+          )}
+        </div>
         <div className="text-sm font-mono text-zinc-300">+971 56 547 8227</div>
       </div>
 
