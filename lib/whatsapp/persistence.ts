@@ -215,7 +215,7 @@ export async function insertOutboundMessage(
   conversationId: string,
   sendResult: SendResult,
   body: string,
-  meta?: { sent_by_id?: string | null; reply_to_wamid?: string | null },
+  meta?: { sent_by_user_id?: string | null; sent_by_name?: string | null; reply_to_wamid?: string | null },
 ): Promise<{ id: string } | null> {
   if (!sendResult.ok) return null;
   const client = createServiceClient();
@@ -233,7 +233,8 @@ export async function insertOutboundMessage(
       body,
       reply_to_wamid: meta?.reply_to_wamid || null,
       status: 'sent',
-      metadata: meta?.sent_by_id ? { sent_by_id: meta.sent_by_id } : {},
+      sent_by_user_id: meta?.sent_by_user_id || null,
+      sent_by_name: meta?.sent_by_name || null,
     })
     .select('id')
     .single();

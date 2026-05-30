@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { sendText, sendTemplate, isCloudConfigured } from '@/lib/whatsapp/cloud/client';
 import type { WACloudTemplateComponent } from '@/lib/whatsapp/cloud/types';
 import { recordWhatsappOutgoing } from '@/lib/operations/store';
+import { insertOutboundMessage, resolveOrgId, upsertConversation } from '@/lib/whatsapp/persistence';
+import { createServiceClient } from '@/lib/supabase/server';
+import { findConversationByPhone } from '@/lib/whatsapp/queries';
 
 /**
  * POST /api/whatsapp/send
@@ -66,7 +69,11 @@ export async function POST(req: Request) {
       if (!result.ok) {
         return NextResponse.json({ mode: 'real', ...result }, { status: 502 });
       }
-      return NextResponse.json({ ok: true, mode: 'real', wamid: result.wamid, ...outgoingRecord });
+      const persisted = await persistOutbound({
+        to, body: '(template) ' + body.template_name,
+        result, sentByUserId: body.user_id, sentByName: body.sent_by_name, replyTo: body.reply_to_wamid,
+      });
+      return NextResponse.json({ ok: true, mode: 'real', wamid: result.wamid, ...outgoingRecord, persisted });
     }
 
     if (typeof body.body !== 'string' || body.body.trim().length === 0) {
@@ -82,8 +89,51 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return NextResponse.json({ mode: 'real', ...result }, { status: 502 });
     }
-    return NextResponse.json({ ok: true, mode: 'real', wamid: result.wamid, ...outgoingRecord });
+    const persisted = await persistOutbound({
+      to, body: body.body,
+      result, sentByUserId: body.user_id, sentByName: body.sent_by_name, replyTo: body.reply_to_wamid,
+    });
+    return NextResponse.json({ ok: true, mode: 'real', wamid: result.wamid, ...outgoingRecord, persisted });
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+  }
+}
+
+// ─── Outbound persist (Slice 1.6) ─────────────────────────────────────────
+// Best-effort write to Supabase whatsapp_messages so the status webhook
+// has a row to match against. Never throws — a Supabase outage must not
+// stop the agent from sending another message.
+
+async function persistOutbound(input: {
+  to: string;
+  body: string;
+  result: Awaited<ReturnType<typeof sendText>>;
+  sentByUserId?: string | null;
+  sentByName?: string | null;
+  replyTo?: string | null;
+}): Promise<{ message_id: string | null; conversation_id: string | null; mode: 'live' | 'skipped' }> {
+  if (!input.result.ok) return { message_id: null, conversation_id: null, mode: 'skipped' };
+
+  const orgId = resolveOrgId();
+  const client = createServiceClient();
+  if (!orgId || !client) return { message_id: null, conversation_id: null, mode: 'skipped' };
+
+  try {
+    // Resolve conversation_id: prefer an existing row, else upsert a stub so
+    // outbound-first conversations (welcome blast, template fan-out) still
+    // land somewhere the desk can read.
+    const phoneE164 = input.to.startsWith('+') ? input.to : '+' + input.to;
+    const existing = await findConversationByPhone(phoneE164);
+    const convId = existing?.id || (await upsertConversation(orgId, phoneE164, {})).id;
+
+    const persisted = await insertOutboundMessage(orgId, convId, input.result, input.body, {
+      sent_by_user_id: input.sentByUserId || null,
+      sent_by_name: input.sentByName || null,
+      reply_to_wamid: input.replyTo || null,
+    });
+    return { message_id: persisted?.id || null, conversation_id: convId, mode: 'live' };
+  } catch (err) {
+    console.error('[wa.persist.outbound] failed:', err);
+    return { message_id: null, conversation_id: null, mode: 'skipped' };
   }
 }

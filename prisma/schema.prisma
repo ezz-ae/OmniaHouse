@@ -445,6 +445,8 @@ model WhatsAppMessage {
   sent_at           DateTime @default(now()) @db.Timestamptz
   delivered_at      DateTime? @db.Timestamptz
   read_at           DateTime? @db.Timestamptz
+  sent_by_user_id   String?  @db.Uuid
+  sent_by_name      String?
   created_at        DateTime @default(now()) @db.Timestamptz
 
   organization Organization         @relation(fields: [org_id], references: [id], onDelete: Cascade)
