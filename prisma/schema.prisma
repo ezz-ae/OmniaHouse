@@ -50,6 +50,7 @@ model Organization {
   org_integrations OrgIntegration[]
   whatsapp_conversations WhatsAppConversation[]
   whatsapp_messages      WhatsAppMessage[]
+  customers              Customer[]
 
   @@map("organizations")
 }
@@ -455,4 +456,55 @@ model WhatsAppMessage {
   @@index([conversation_id, sent_at(sort: Desc)])
   @@index([org_id, phone, sent_at(sort: Desc)])
   @@map("whatsapp_messages")
+}
+
+// ─── CRM customers (slice 2 · 20260618_customers) ─────────────────────────
+
+model Customer {
+  id                       String    @id @default(uuid()) @db.Uuid
+  org_id                   String    @db.Uuid
+
+  // Identity
+  phone                    String
+  whatsapp_number          String?
+  email                    String?
+  shopify_customer_id      String?
+  woocommerce_customer_id  String?
+  whatsapp_wa_id           String?
+  instagram_handle         String?
+
+  // Profile
+  name                     String?
+  country                  String?
+  language                 String    @default("en")
+  city                     String?
+  source                   String    @default("whatsapp")
+  customer_type            String    @default("new")
+
+  // Flags + tags
+  vip                      Boolean   @default(false)
+  marketing_consent        Boolean   @default(true)
+  whatsapp_promo_consent   Boolean   @default(true)
+  tags                     String[]  @default([])
+  finance_flags            String[]  @default([])
+
+  // Cached aggregates
+  ltv_aed                  Decimal   @default(0) @db.Decimal(14, 2)
+  orders_count             Int       @default(0)
+  last_order_at            DateTime? @db.Timestamptz
+  first_seen_at            DateTime? @default(now()) @db.Timestamptz
+  last_touch_at            DateTime? @db.Timestamptz
+
+  // Audit
+  created_at               DateTime  @default(now()) @db.Timestamptz
+  updated_at               DateTime  @default(now()) @db.Timestamptz
+  created_by               String?   @db.Uuid
+  updated_by               String?   @db.Uuid
+
+  organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
+
+  @@unique([org_id, phone])
+  @@index([org_id, name])
+  @@index([org_id, last_order_at(sort: Desc)])
+  @@map("customers")
 }
