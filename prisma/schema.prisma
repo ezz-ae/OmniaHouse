@@ -193,32 +193,40 @@ model Product {
 // ─── Orders + extractions (20260525 + 20260608 crm + 20260609 cashback) ────
 
 model OrderSubmission {
-  id                   String    @id @default(uuid()) @db.Uuid
-  org_id               String    @db.Uuid
-  phone                String
-  customer_name        String?
-  intent               String?
-  status               String    @default("draft")
-  language             String    @default("en")
-  source               String?
-  target_store         String?
-  country              String?
-  items                Json      @default("[]")
-  total_aed            Decimal?  @db.Decimal(12, 2)
-  cashback_earned_aed  Decimal   @default(0) @db.Decimal(12, 2)
-  cashback_applied_aed Decimal   @default(0) @db.Decimal(12, 2)
-  labels               String[]  @default([])
-  is_archived          Boolean   @default(false)
-  assigned_agent_id    String?   @db.Uuid
-  flags                String[]  @default([])
-  metadata             Json      @default("{}")
-  created_at           DateTime  @default(now()) @db.Timestamptz
-  updated_at           DateTime  @default(now()) @db.Timestamptz
+  id                    String    @id @default(uuid()) @db.Uuid
+  org_id                String    @db.Uuid
+  customer_id           String?   @db.Uuid
+  phone                 String
+  customer_name         String?
+  intent                String?
+  status                String    @default("draft")
+  payment_method        String?
+  payment_status        String    @default("unverified")
+  language              String    @default("en")
+  source                String?
+  target_store          String?
+  country               String?
+  items                 Json      @default("[]")
+  total_aed             Decimal?  @db.Decimal(12, 2)
+  cashback_earned_aed   Decimal   @default(0) @db.Decimal(12, 2)
+  cashback_applied_aed  Decimal   @default(0) @db.Decimal(12, 2)
+  labels                String[]  @default([])
+  is_archived           Boolean   @default(false)
+  assigned_agent_id     String?   @db.Uuid
+  flags                 String[]  @default([])
+  metadata              Json      @default("{}")
+  shopify_draft_id      String?
+  woocommerce_order_id  String?
+  notes                 String[]  @default([])
+  due_at                DateTime? @db.Timestamptz
+  created_at            DateTime  @default(now()) @db.Timestamptz
+  updated_at            DateTime  @default(now()) @db.Timestamptz
 
   organization Organization @relation(fields: [org_id], references: [id], onDelete: Cascade)
 
-  @@index([org_id, status])
-  @@index([phone])
+  @@index([org_id, status, created_at(sort: Desc)])
+  @@index([org_id, phone])
+  @@index([customer_id])
   @@map("order_submissions")
 }
 

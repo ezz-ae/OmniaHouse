@@ -1448,6 +1448,25 @@ function buildGeneric(state: OperationsState, title: string, description: string
 
 // ─── Entry point ──────────────────────────────────────────────────────────
 
+// Best-effort overlay: merge Supabase orders on top of the in-memory
+// state.orders so the Orders, Shipping, Finance, Reports, Customer 360,
+// and Cashback aggregators reflect the real queue without rewriting
+// each one. We dedupe by id (Supabase row wins).
+async function overlayLiveOrders(state: any): Promise<any> {
+  try {
+    const { isOrdersLiveAvailable, listOrdersLive, orderRowToOperationsShape } = await import('@/lib/orders/queries');
+    if (!isOrdersLiveAvailable()) return state;
+    const live = await listOrdersLive({ limit: 500 });
+    if (!live || live.length === 0) return state;
+    const merged = new Map<string, any>();
+    for (const o of state.orders || []) merged.set(o.id, o);
+    for (const row of live) merged.set(row.id, orderRowToOperationsShape(row));
+    return { ...state, orders: Array.from(merged.values()) };
+  } catch {
+    return state;
+  }
+}
+
 // Best-effort overlay: merge Supabase customers on top of the in-memory
 // state.customers for room builders that read it (Customers, Reports,
 // Brand cross-references). The operations store still owns orders,
@@ -1496,9 +1515,13 @@ async function overlayLiveCustomers(state: any): Promise<any> {
 
 export async function getRoomData(title: string, description: string): Promise<RoomData> {
   let state = await operationsSnapshot();
-  // The Customers, Reports, and Brand rooms all index over state.customers.
-  // Overlaying the live rows means the moment Postgres has customers, the
-  // room reflects them — without rewiring every aggregator individually.
+  // Order-heavy rooms read state.orders; overlay the Supabase rows on top
+  // so the moment Postgres has data, the room reflects it without
+  // rewriting every aggregator individually.
+  if (title === 'Orders' || title === 'Shipping' || title === 'Finance' || title === 'Reports' || title === 'Cashback' || title === 'Management') {
+    state = await overlayLiveOrders(state);
+  }
+  // Customer-heavy rooms read state.customers.
   if (title === 'Customers' || title === 'Reports' || title === 'Brand Intelligence' || title === 'Cashback') {
     state = await overlayLiveCustomers(state);
   }

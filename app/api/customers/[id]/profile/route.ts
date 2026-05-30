@@ -5,6 +5,7 @@ import { getConversations, getCustomerCard } from '@/lib/whatsapp/mock';
 import { fetchShopifyProfile, isShopifyConfigured } from '@/lib/integrations/shopify';
 import { fetchWooCommerceProfile, isWooConfigured } from '@/lib/integrations/woocommerce';
 import { getCustomerLive, isCustomersLiveAvailable, type CustomerRow } from '@/lib/customers/queries';
+import { isOrdersLiveAvailable, listOrdersLive, orderRowToOperationsShape } from '@/lib/orders/queries';
 
 /**
  * GET /api/customers/[id]/profile
@@ -21,7 +22,18 @@ import { getCustomerLive, isCustomersLiveAvailable, type CustomerRow } from '@/l
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const idOrPhone = decodeURIComponent(params.id);
-  const state = await operationsSnapshot();
+  let state = await operationsSnapshot();
+
+  // Overlay live Supabase orders so this customer's history is real.
+  if (isOrdersLiveAvailable()) {
+    const live = await listOrdersLive({ limit: 500 });
+    if (live && live.length > 0) {
+      const merged = new Map<string, any>();
+      for (const o of state.orders || []) merged.set(o.id, o);
+      for (const row of live) merged.set(row.id, orderRowToOperationsShape(row));
+      state = { ...state, orders: Array.from(merged.values()) };
+    }
+  }
   const conversations = getConversations();
 
   let customer: UnifiedCustomer | null = null;
