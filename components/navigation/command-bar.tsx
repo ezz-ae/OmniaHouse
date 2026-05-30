@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ROOMS } from '@/lib/rooms';
 import { cn } from '@/lib/utils';
 import { Kbd } from '@/components/ui/button';
-import { Search, ArrowRight, Hash, Sparkles, X } from 'lucide-react';
+import { Search, ArrowRight, Hash, Sparkles, X, LogOut } from 'lucide-react';
 
 type Item = {
   id: string;
@@ -13,7 +13,7 @@ type Item = {
   label: string;
   hint?: string;
   href?: string;
-  action?: () => void;
+  action?: () => void | Promise<void>;
   icon?: React.ComponentType<{ className?: string }>;
 };
 
@@ -90,6 +90,19 @@ export function CommandBar() {
         href: '/inventory',
         icon: Search,
       },
+      {
+        id: 'action:sign-out',
+        group: 'Account',
+        label: 'Sign out',
+        hint: 'End this office session',
+        action: async () => {
+          await fetch('/auth/signout', { method: 'POST' }).catch(() => null);
+          window.sessionStorage.removeItem('oh:door');
+          router.replace('/login');
+          router.refresh();
+        },
+        icon: LogOut,
+      },
     ];
     return [...actions, ...rooms];
   }, []);
@@ -111,9 +124,9 @@ export function CommandBar() {
     return g;
   }, [filtered]);
 
-  function go(item: Item) {
+  async function go(item: Item) {
     if (item.href) router.push(item.href);
-    if (item.action) item.action();
+    if (item.action) await item.action();
     setOpen(false);
   }
 

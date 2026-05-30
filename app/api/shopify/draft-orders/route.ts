@@ -1,5 +1,5 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 /**
@@ -18,13 +18,13 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const status = url.searchParams.get('status') || 'open';
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true, mode: 'mock', draft_orders: mockDrafts(status) });
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const { data: integration } = await supabase
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({
       success: true,
       mode: 'mock',
@@ -69,9 +69,9 @@ export async function POST(req: Request) {
     });
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const { data: integration } = await supabase

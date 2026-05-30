@@ -1,5 +1,5 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 /**
@@ -13,14 +13,14 @@ import { NextResponse } from 'next/server';
  * Management Room badges resolve.
  */
 export async function POST(req: Request) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!isSupabaseConfigured()) {
     const { provider } = await req.json().catch(() => ({ provider: 'unknown' }));
     return NextResponse.json({ mode: 'mock', provider, status: 'active' });
   }
 
-  const supabase = createRouteHandlerClient({ cookies });
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const { provider } = await req.json();

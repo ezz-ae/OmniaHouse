@@ -1,5 +1,5 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 /**
@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 const SHOPIFY_API_VERSION = '2024-04';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({
       success: true,
       mode: 'mock',
@@ -31,23 +31,23 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const body = await req.json().catch(() => ({}));
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true, mode: 'mock', draft_order: { id: params.id, ...body } });
   }
   return shopifyProxy(params.id, 'PUT', { draft_order: body });
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({ success: true, mode: 'mock', deleted: params.id });
   }
   return shopifyProxy(params.id, 'DELETE', null);
 }
 
 async function shopifyProxy(id: string, method: 'GET' | 'PUT' | 'DELETE', body: any) {
-  const supabase = createRouteHandlerClient({ cookies });
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: integration } = await supabase
     .from('org_integrations')
@@ -65,7 +65,7 @@ async function shopifyProxy(id: string, method: 'GET' | 'PUT' | 'DELETE', body: 
     body: body ? JSON.stringify(body) : undefined,
     next: { revalidate: 0 },
   });
-  const data = method === 'DELETE' ? { deleted: id } : await res.json();
-  if (!res.ok) return NextResponse.json({ error: data?.errors?.toString() || 'Shopify request failed' }, { status: 500 });
-  return NextResponse.json({ success: true, mode: 'real', ...data });
+  const result = method === 'DELETE' ? { deleted: id } : await res.json();
+  if (!res.ok) return NextResponse.json({ error: result?.errors?.toString() || 'Shopify request failed' }, { status: 500 });
+  return NextResponse.json({ success: true, mode: 'real', ...result });
 }

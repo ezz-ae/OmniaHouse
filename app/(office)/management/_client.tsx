@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 
 export default function ManagementRoom() {
   const [integrations, setIntegrations] = useState<any[]>([]);
@@ -26,7 +26,7 @@ export default function ManagementRoom() {
   const [isCompletingOrder, setIsCompletingOrder] = useState(false);
   const [isSyncingCustomer, setIsSyncingCustomer] = useState(false);
   const [customerWalletBalance, setCustomerWalletBalance] = useState<number | null>(null);
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   useEffect(() => {
     async function fetchIntegrations() {
