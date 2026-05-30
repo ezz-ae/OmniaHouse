@@ -160,8 +160,10 @@ model AIMemory {
 model Product {
   id                     String   @id @default(uuid()) @db.Uuid
   org_id                 String?  @db.Uuid
-  sku                    String   @unique
-  master_title           String
+  sku                    String?
+  normalized_sku         String?
+  title                  String?
+  master_title           String?
   display_title          String?
   category               String?
   material               String?
@@ -174,6 +176,7 @@ model Product {
   woocommerce_qty        Int?
   shopify_url            String?
   woocommerce_url        String?
+  image_url              String?
   parity_status          String   @default("unclassified")
   price_delta_pct        Decimal? @db.Decimal(6, 2)
   seo_title              String?
@@ -181,13 +184,35 @@ model Product {
   seo_status             String   @default("pending")
   google_shopping_status String   @default("pending")
   ai_audit_notes         Json     @default("{}")
+  metadata               Json     @default("{}")
   last_synced_at         DateTime @default(now()) @db.Timestamptz
+  updated_at             DateTime @default(now()) @db.Timestamptz
 
   organization Organization? @relation(fields: [org_id], references: [id])
 
-  @@index([parity_status])
-  @@index([seo_status])
+  @@unique([org_id, sku])
+  @@index([org_id, parity_status])
+  @@index([org_id, category])
   @@map("products")
+}
+
+model LiveCatalogueRun {
+  id                 String    @id @default(uuid()) @db.Uuid
+  org_id             String    @db.Uuid
+  started_at         DateTime  @default(now()) @db.Timestamptz
+  finished_at        DateTime? @db.Timestamptz
+  shopify_rows       Int       @default(0)
+  woocommerce_rows   Int       @default(0)
+  unified_rows       Int       @default(0)
+  inserted_rows      Int       @default(0)
+  updated_rows       Int       @default(0)
+  drift_rows         Int       @default(0)
+  errors             Json      @default("[]")
+  triggered_by       String?
+  status             String    @default("running")
+
+  @@index([org_id, started_at(sort: Desc)])
+  @@map("live_catalogue_runs")
 }
 
 // ─── Orders + extractions (20260525 + 20260608 crm + 20260609 cashback) ────

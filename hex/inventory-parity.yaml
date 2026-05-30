@@ -1102,6 +1102,233 @@ cells:
               pinIndexColumns: false
               showAggregations: false
               columnAggregations: null
+  - cellType: COLLAPSIBLE
+    cellId: 019e57ab-1100-7000-9100-b00000000000
+    cellLabel: Supabase · OmniaHouse joined catalogue, customers, orders
+    config:
+      labelStyle: AUTO
+      cells:
+        - cellType: MARKDOWN
+          cellId: 019e57ab-1101-7000-9101-b00000000001
+          config:
+            source: |-
+              ### About this section
+
+              These cells query the **OmniaHouse Postgres** (Supabase) directly
+              instead of the public-website scrape above. The scrape is the
+              freshness source (what's published today); Postgres is the source
+              of record (what's been recorded, owned, sold).
+
+              Hex secrets required (set under Project → Secrets):
+              `OMNIA_PG_HOST`, `OMNIA_PG_DATABASE`, `OMNIA_PG_USER`,
+              `OMNIA_PG_PASSWORD`, `OMNIA_PG_PORT` (5432 by default), and
+              `OMNIA_ORG_ID` for the single-org filter. Use the
+              **NON-POOLING** connection string for these (Hex runs longer
+              than a single web request).
+
+              All cells filter by `org_id = $OMNIA_ORG_ID` so the analyst
+              numbers never cross orgs.
+        - cellType: CODE
+          cellId: 019e57ab-1102-7000-9102-b00000000002
+          cellLabel: Connect to Supabase
+          config:
+            source: |-
+              import os
+              import psycopg2
+              import pandas as pd
+
+              PG = dict(
+                  host=os.environ["OMNIA_PG_HOST"],
+                  dbname=os.environ["OMNIA_PG_DATABASE"],
+                  user=os.environ["OMNIA_PG_USER"],
+                  password=os.environ["OMNIA_PG_PASSWORD"],
+                  port=int(os.environ.get("OMNIA_PG_PORT", 5432)),
+                  sslmode="require",
+              )
+              ORG_ID = os.environ["OMNIA_ORG_ID"]
+              CONN = psycopg2.connect(**PG)
+
+              def q(sql, params=None):
+                  return pd.read_sql_query(sql, CONN, params=params or {"org_id": ORG_ID})
+
+              q("SELECT NOW() AS db_now, version() AS pg_version")
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57ab-1103-7000-9103-b00000000003
+          cellLabel: Live catalogue freshness (last 30 syncs)
+          config:
+            source: |-
+              df_runs = q("""
+                SELECT
+                  started_at, finished_at, status,
+                  shopify_rows, woocommerce_rows, unified_rows,
+                  inserted_rows, updated_rows, drift_rows,
+                  triggered_by,
+                  EXTRACT(EPOCH FROM (finished_at - started_at)) AS duration_sec
+                FROM live_catalogue_runs
+                WHERE org_id = %(org_id)s
+                ORDER BY started_at DESC
+                LIMIT 30
+              """)
+              df_runs
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57ab-1104-7000-9104-b00000000004
+          cellLabel: Catalogue health snapshot (Postgres)
+          config:
+            source: |-
+              df_db_health = q("""
+                SELECT
+                  COUNT(*)                                                    AS products_total,
+                  COUNT(*) FILTER (WHERE on_shopify)                          AS products_shopify,
+                  COUNT(*) FILTER (WHERE on_woocommerce)                      AS products_woocommerce,
+                  COUNT(*) FILTER (WHERE on_shopify AND on_woocommerce)       AS products_both,
+                  COUNT(*) FILTER (WHERE parity_status = 'both_price_drift')  AS price_drift_count,
+                  COUNT(*) FILTER (WHERE is_limited_edition)                  AS limited_editions,
+                  COUNT(*) FILTER (WHERE seo_status = 'pending')              AS seo_pending,
+                  COUNT(*) FILTER (WHERE google_shopping_status = 'pending')  AS google_shopping_pending,
+                  ROUND(AVG(shopify_price_aed)::numeric, 2)                   AS avg_price_aed_shopify,
+                  ROUND(AVG(woocommerce_price_aed)::numeric, 2)               AS avg_price_aed_woocommerce,
+                  MAX(last_synced_at)                                         AS last_synced_at
+                FROM products
+                WHERE org_id = %(org_id)s
+              """)
+              df_db_health
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57ab-1105-7000-9105-b00000000005
+          cellLabel: Customers · LTV distribution + segments
+          config:
+            source: |-
+              df_customers = q("""
+                SELECT
+                  c.country,
+                  COUNT(*)                                                     AS customers,
+                  COUNT(*) FILTER (WHERE c.vip)                                AS vip,
+                  COUNT(*) FILTER (WHERE c.marketing_consent)                  AS opted_in,
+                  COUNT(*) FILTER (WHERE c.finance_flags != '{}')              AS at_risk,
+                  ROUND(AVG(c.ltv_aed)::numeric, 2)                            AS avg_ltv_aed,
+                  ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY c.ltv_aed)::numeric, 2)
+                                                                               AS median_ltv_aed,
+                  ROUND(MAX(c.ltv_aed)::numeric, 2)                            AS max_ltv_aed
+                FROM customers c
+                WHERE c.org_id = %(org_id)s
+                GROUP BY c.country
+                ORDER BY customers DESC
+              """)
+              df_customers
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57ab-1106-7000-9106-b00000000006
+          cellLabel: Top SKUs by revenue (Postgres orders × products)
+          config:
+            source: |-
+              df_top_sku = q("""
+                WITH lines AS (
+                  SELECT
+                    o.id              AS order_id,
+                    o.org_id,
+                    o.customer_id,
+                    o.total_aed,
+                    o.created_at,
+                    (item->>'sku')    AS sku,
+                    (item->>'title')  AS title,
+                    NULLIF(item->>'qty','')::int     AS qty,
+                    NULLIF(item->>'price_aed','')::numeric AS price_aed
+                  FROM order_submissions o,
+                       jsonb_array_elements(o.items) item
+                  WHERE o.org_id = %(org_id)s
+                    AND o.status IN ('paid','fulfilled','payment_pending','draft')
+                )
+                SELECT
+                  sku,
+                  COALESCE(MAX(p.display_title), MAX(lines.title)) AS title,
+                  COUNT(*)                                          AS orders,
+                  SUM(qty)                                          AS qty_total,
+                  ROUND(SUM(qty * price_aed)::numeric, 2)           AS revenue_aed
+                FROM lines
+                LEFT JOIN products p
+                  ON p.org_id = lines.org_id
+                 AND p.sku = lines.sku
+                GROUP BY sku
+                ORDER BY revenue_aed DESC NULLS LAST
+                LIMIT 30
+              """)
+              df_top_sku
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57ab-1107-7000-9107-b00000000007
+          cellLabel: Repeat customers buying drifted SKUs (the highest-value parity gap)
+          config:
+            source: |-
+              # Customers who bought ≥2 times AND whose orders include SKUs
+              # currently flagged as both_price_drift. This is the cohort
+              # where pricing inconsistency leaks money the fastest.
+              df_drift_cohort = q("""
+                WITH drift_skus AS (
+                  SELECT sku
+                  FROM products
+                  WHERE org_id = %(org_id)s
+                    AND parity_status = 'both_price_drift'
+                    AND sku IS NOT NULL
+                ),
+                customer_purchased_drift AS (
+                  SELECT
+                    o.customer_id,
+                    o.phone,
+                    COUNT(DISTINCT (item->>'sku'))    AS drift_skus_bought,
+                    SUM((NULLIF(item->>'qty','')::int) * (NULLIF(item->>'price_aed','')::numeric)) AS aed_spent_on_drift
+                  FROM order_submissions o,
+                       jsonb_array_elements(o.items) item
+                  WHERE o.org_id = %(org_id)s
+                    AND (item->>'sku') IN (SELECT sku FROM drift_skus)
+                  GROUP BY o.customer_id, o.phone
+                  HAVING COUNT(DISTINCT o.id) >= 2
+                )
+                SELECT
+                  c.id                  AS customer_id,
+                  c.name,
+                  c.phone,
+                  c.country,
+                  c.vip,
+                  c.ltv_aed,
+                  c.orders_count,
+                  cpd.drift_skus_bought,
+                  ROUND(cpd.aed_spent_on_drift::numeric, 2)  AS aed_on_drift_skus
+                FROM customer_purchased_drift cpd
+                JOIN customers c
+                  ON c.id = cpd.customer_id
+                ORDER BY cpd.aed_spent_on_drift DESC NULLS LAST
+                LIMIT 40
+              """)
+              df_drift_cohort
+            dataFrameCell: false
+        - cellType: CODE
+          cellId: 019e57ab-1108-7000-9108-b00000000008
+          cellLabel: WhatsApp Desk inbox vs CRM customers (today)
+          config:
+            source: |-
+              # Cross-source story: how many of today's WhatsApp inbound
+              # phones are recognised customers vs. brand-new leads?
+              df_wa_today = q("""
+                WITH today_phones AS (
+                  SELECT DISTINCT m.phone
+                  FROM whatsapp_messages m
+                  WHERE m.org_id = %(org_id)s
+                    AND m.direction = 'inbound'
+                    AND m.sent_at >= NOW() - INTERVAL '24 hours'
+                )
+                SELECT
+                  COUNT(*)                                          AS messages_today,
+                  COUNT(*) FILTER (WHERE c.id IS NOT NULL)          AS from_known_customer,
+                  COUNT(*) FILTER (WHERE c.id IS NULL)              AS from_new_lead,
+                  COUNT(*) FILTER (WHERE c.vip)                     AS from_vip
+                FROM today_phones t
+                LEFT JOIN customers c
+                  ON c.org_id = %(org_id)s AND c.phone = t.phone
+              """)
+              df_wa_today
+            dataFrameCell: false
 appLayout:
   visibleMetadataFields:
     - NAME

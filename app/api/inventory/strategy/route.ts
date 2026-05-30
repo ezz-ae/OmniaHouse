@@ -5,6 +5,7 @@ import { isAIEnabled, callJSON, resolveModelName } from '@/lib/ai/client';
 import { INVENTORY_STRATEGY_PROMPT } from '@/lib/prompts';
 import { scrapeShopify, scrapeWoo, unify } from '@/lib/inventory/live-scrape';
 import { toProduct } from '@/lib/inventory/live-adapter';
+import { isInventoryLiveAvailable, listProductsLive } from '@/lib/inventory/queries';
 import type { Product } from '@/lib/inventory/types';
 
 /**
@@ -25,9 +26,18 @@ export async function POST(req: Request) {
     const source = body.source || 'auto';
 
     let products: Product[] = [];
-    let usedSource: 'live' | 'mock' = 'mock';
+    let usedSource: 'supabase' | 'live' | 'mock' = 'mock';
 
-    if (source !== 'mock') {
+    // 1. Supabase
+    if (source !== 'mock' && source !== 'live' && isInventoryLiveAvailable()) {
+      const supa = await listProductsLive({ limit: 5000 });
+      if (supa && supa.length > 0) {
+        products = supa;
+        usedSource = 'supabase';
+      }
+    }
+    // 2. Live scrape
+    if (products.length === 0 && source !== 'mock') {
       try {
         const [shopify, woo] = await Promise.all([
           scrapeShopify().catch(() => []),
@@ -42,6 +52,7 @@ export async function POST(req: Request) {
         // fall through to mock
       }
     }
+    // 3. Seed
     if (products.length === 0) {
       products = getCatalogue();
       usedSource = 'mock';

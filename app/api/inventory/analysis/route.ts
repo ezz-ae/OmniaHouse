@@ -3,28 +3,62 @@ import { operationsSnapshot, type ManagedProduct } from '@/lib/operations/store'
 import { buildInventoryAnalysis } from '@/lib/inventory/analysis';
 import { scrapeShopify, scrapeWoo, unify } from '@/lib/inventory/live-scrape';
 import { toProduct } from '@/lib/inventory/live-adapter';
+import { isInventoryLiveAvailable, listProductsLive, inventoryStats } from '@/lib/inventory/queries';
 
 // GET /api/inventory/analysis
-//   Pulls the live scrape from omniastores.ae + omniastores.com (the same
-//   data the Hex notebook uses) and runs the full analysis against it.
-//   Falls back to the seeded mock catalogue if the scrape fails, so the
-//   demo never shows an empty page.
 //
-//   ?source=mock forces the seeded catalogue.
-//   ?source=live forces a live scrape and errors if it fails.
+//   Read-path order:
+//     1. Supabase products table (the system of record once the sync has
+//        run at least once). Has stable ids, freshness timestamps, and
+//        joins to live_catalogue_runs.
+//     2. In-process live scrape (omniastores.ae + omniastores.com) when
+//        Supabase is empty or unavailable. Same data the Hex notebook
+//        uses.
+//     3. Seeded mock catalogue as a last resort so a brand-new deploy
+//        never shows an empty Inventory room.
+//
+//   ?source=supabase | live | mock forces a specific source.
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const source = url.searchParams.get('source') || 'auto';
+  const forcedSource = url.searchParams.get('source') || 'auto';
 
   const state = await operationsSnapshot();
 
   let products: ManagedProduct[] = state.products;
-  let used = 'mock';
+  let used: 'supabase' | 'live' | 'mock' = 'mock';
   let scrapeError: string | null = null;
   let counts = { shopify: 0, woocommerce: 0, total: 0 };
+  let lastSyncedAt: string | null = null;
 
-  if (source !== 'mock') {
+  // 1. Supabase
+  if (forcedSource !== 'mock' && forcedSource !== 'live' && isInventoryLiveAvailable()) {
+    const live = await listProductsLive({ limit: 5000 });
+    if (live && live.length > 0) {
+      const stamped = new Date().toISOString();
+      products = live.map((p) => ({
+        ...p,
+        created_at: p.last_synced_at || stamped,
+        updated_at: p.last_synced_at || stamped,
+        platform_ids: {
+          shopify: p.on_shopify ? p.master_sku : undefined,
+          woocommerce: p.on_woocommerce ? p.master_sku : undefined,
+        },
+        sync_status: {
+          shopify: (p.on_shopify ? 'synced' : 'pending') as 'synced' | 'pending',
+          woocommerce: (p.on_woocommerce ? 'synced' : 'pending') as 'synced' | 'pending',
+        },
+        sync_errors: {},
+      })) as ManagedProduct[];
+      used = 'supabase';
+      counts = { shopify: live.filter((p) => p.on_shopify).length, woocommerce: live.filter((p) => p.on_woocommerce).length, total: live.length };
+      const stats = await inventoryStats();
+      lastSyncedAt = stats?.last_synced_at || null;
+    }
+  }
+
+  // 2. Live scrape (when Supabase had no data or was explicitly requested)
+  if (used === 'mock' && forcedSource !== 'mock') {
     try {
       const [shopify, woo] = await Promise.all([
         scrapeShopify().catch((e) => { scrapeError = `shopify: ${e?.message || e}`; return []; }),
@@ -58,19 +92,21 @@ export async function GET(req: Request) {
     }
   }
 
-  if (source === 'live' && used !== 'live') {
+  if (forcedSource === 'live' && used !== 'live') {
     return NextResponse.json({ ok: false, error: `Live scrape failed · ${scrapeError || 'no products returned'}` }, { status: 502 });
   }
+  if (forcedSource === 'supabase' && used !== 'supabase') {
+    return NextResponse.json({ ok: false, error: `Supabase products unavailable. Hit /api/inventory/sync-from-live first.` }, { status: 502 });
+  }
 
-  // Merge: keep live products as the catalogue, keep operations-store
-  // signals/orders/customers as the demand-side context.
   const analysis = buildInventoryAnalysis({ ...state, products });
 
   return NextResponse.json({
     ok: true,
-    analysis,
     source: used,
+    last_synced_at: lastSyncedAt,
     live_counts: counts,
     scrape_error: scrapeError,
+    analysis,
   });
 }

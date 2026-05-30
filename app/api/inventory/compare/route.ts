@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { scrapeShopify, scrapeWoo, unify } from '@/lib/inventory/live-scrape';
+import { isInventoryLiveAvailable, listProductsLive } from '@/lib/inventory/queries';
 import { toProduct } from '@/lib/inventory/live-adapter';
+import type { Product } from '@/lib/inventory/types';
 import { isAIEnabled, callJSON, resolveModelName } from '@/lib/ai/client';
 
 /**
@@ -28,9 +30,18 @@ export async function GET(req: Request) {
   const skusParam = url.searchParams.get('skus') || '';
   const wantedSkus = skusParam.split(',').map((s) => s.trim()).filter(Boolean);
 
-  const [shopify, woo] = await Promise.all([scrapeShopify().catch(() => []), scrapeWoo().catch(() => [])]);
-  const unified = unify(shopify, woo);
-  const products = unified.map(toProduct);
+  let products: Product[] = [];
+  let dataSource: 'supabase' | 'live' = 'live';
+  if (isInventoryLiveAvailable()) {
+    const supa = await listProductsLive({ limit: 5000 });
+    if (supa && supa.length > 0) { products = supa; dataSource = 'supabase'; }
+  }
+  if (products.length === 0) {
+    const [shopify, woo] = await Promise.all([scrapeShopify().catch(() => []), scrapeWoo().catch(() => [])]);
+    const unified = unify(shopify, woo);
+    products = unified.map(toProduct);
+    dataSource = 'live';
+  }
 
   let picks = products;
   if (wantedSkus.length) {
