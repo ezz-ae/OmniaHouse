@@ -108,7 +108,7 @@ export function normalizeIncoming(
 
   switch (msg.type) {
     case 'text':
-      return { ...base, body: msg.text?.body || '' };
+      return { ...base, type: 'text', body: msg.text?.body || '' };
     case 'image':
     case 'document':
     case 'audio':
@@ -116,9 +116,10 @@ export function normalizeIncoming(
     case 'voice':
     case 'sticker': {
       const media = msg[msg.type as 'image' | 'document' | 'audio' | 'video' | 'voice' | 'sticker'];
-      if (!media) return base;
+      if (!media) return { ...base, type: 'media_pending', body: '' };
       return {
         ...base,
+        type: 'media_pending',
         body: media.caption || '',
         media: {
           media_id: media.id,
@@ -128,17 +129,25 @@ export function normalizeIncoming(
         },
       };
     }
+    case 'interactive':
+      return {
+        ...base,
+        type: 'interactive',
+        body: '(interactive)',
+        interactive: (msg as any).interactive,
+      };
     case 'reaction':
-      return { ...base, body: `(reaction: ${msg.reaction?.emoji || ''})` };
+      return { ...base, type: 'system', body: `(reaction: ${msg.reaction?.emoji || ''})` };
     case 'location':
       return {
         ...base,
+        type: 'system',
         body: msg.location
           ? `(location: ${msg.location.name || ''} ${msg.location.latitude},${msg.location.longitude})`
           : '(location)',
       };
     default:
-      return { ...base, body: `(${msg.type})` };
+      return { ...base, type: 'system', body: `(${msg.type})` };
   }
 }
 

@@ -48,6 +48,8 @@ model Organization {
   customer_wallets CustomerWallet[]
   products Product[]
   org_integrations OrgIntegration[]
+  whatsapp_conversations WhatsAppConversation[]
+  whatsapp_messages      WhatsAppMessage[]
 
   @@map("organizations")
 }
@@ -395,4 +397,60 @@ model RoomWorkflow {
 
   @@index([org_id, status, target_room_slug])
   @@map("room_workflows")
+}
+
+// ─── WhatsApp persistence (spec 2026-05-26) ───────────────────────────────
+
+model WhatsAppConversation {
+  id                String   @id @default(uuid()) @db.Uuid
+  org_id            String   @db.Uuid
+  phone             String
+  status            String   @default("unclaimed")
+  assigned_to       String?  @db.Uuid
+  unread_count      Int      @default(0)
+  language          String   @default("en")
+  last_message_at   DateTime @default(now()) @db.Timestamptz
+  last_inbound_at   DateTime? @db.Timestamptz
+  last_outbound_at  DateTime? @db.Timestamptz
+  metadata          Json     @default("{}")
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @db.Timestamptz
+
+  organization Organization      @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  messages     WhatsAppMessage[]
+
+  @@unique([org_id, phone])
+  @@index([org_id, status, last_message_at(sort: Desc)])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppMessage {
+  id                String   @id @default(uuid()) @db.Uuid
+  org_id            String   @db.Uuid
+  conversation_id   String   @db.Uuid
+  meta_message_id   String   @unique
+  phone             String
+  direction         String   // 'inbound' | 'outbound'
+  type              String   // 'text' | 'media_pending' | 'interactive' | 'system'
+  body              String?
+  media_caption     String?
+  media_meta        Json?
+  interactive_json  Json?
+  reply_to_wamid    String?
+  status            String   @default("received")
+  error_code        Int?
+  error_message     String?
+  pricing_billable  Boolean?
+  pricing_category  String?
+  sent_at           DateTime @default(now()) @db.Timestamptz
+  delivered_at      DateTime? @db.Timestamptz
+  read_at           DateTime? @db.Timestamptz
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  organization Organization         @relation(fields: [org_id], references: [id], onDelete: Cascade)
+  conversation WhatsAppConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, sent_at(sort: Desc)])
+  @@index([org_id, phone, sent_at(sort: Desc)])
+  @@map("whatsapp_messages")
 }

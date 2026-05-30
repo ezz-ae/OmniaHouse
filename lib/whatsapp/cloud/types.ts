@@ -135,6 +135,8 @@ export type NormalizedIncomingMessage = {
   customer_name: string;
   /** Plain-text body. For media, this is the caption (may be empty). */
   body: string;
+  /** Persistence type — drives the whatsapp_messages.type column. */
+  type?: 'text' | 'media_pending' | 'interactive' | 'system';
   /** When the message had media, the metadata we kept. */
   media?: {
     media_id: string;
@@ -142,6 +144,8 @@ export type NormalizedIncomingMessage = {
     filename?: string;
     kind: 'image' | 'document' | 'audio' | 'video' | 'voice' | 'sticker';
   };
+  /** Raw interactive payload (button click, list reply, flow completion). */
+  interactive?: unknown;
   /** When the customer replied to one of our messages. */
   in_reply_to_wamid?: string;
 };

@@ -6,6 +6,15 @@ import {
   markRead,
 } from '@/lib/whatsapp/cloud/client';
 import type { WACloudWebhook } from '@/lib/whatsapp/cloud/types';
+import {
+  resolveOrgId,
+  upsertConversation,
+  insertInboundMessage,
+  recordStatusUpdate,
+  inferLanguageFromBody,
+} from '@/lib/whatsapp/persistence';
+import { logSystemActivity, AUDIT_ACTIONS } from '@/lib/audit';
+import { maskPhone } from '@/lib/whatsapp/language';
 
 /**
  * /api/whatsapp/webhook
@@ -14,11 +23,12 @@ import type { WACloudWebhook } from '@/lib/whatsapp/cloud/types';
  *        hub.challenge back when hub.verify_token matches the env
  *        var we set in Meta's webhook configuration screen.
  *
- * POST — every incoming message + status update from Meta.
- *        We verify the signature, normalize the payload, then
- *        delegate to a domain handler (TODO: persist to Supabase
- *        + run extraction). Right now we log so you can confirm
- *        end-to-end as soon as Meta is configured.
+ * POST — every incoming message + status update from Meta. We verify
+ *        the signature, normalize the payload, then persist inbound
+ *        messages + outbound status callbacks to Supabase via
+ *        lib/whatsapp/persistence.ts.
+ *
+ * Spec: docs/specs/2026-05-26-whatsapp-webhook-persistence.md
  */
 
 export async function GET(req: Request) {
@@ -60,11 +70,18 @@ export async function POST(req: Request) {
     return new NextResponse('bad_payload', { status: 400 });
   }
 
+  // Spec §1 — without OMNIA_ORG_ID we accept the payload and bail. Returning
+  // 5xx would cause Meta to pause delivery for the whole number.
+  const orgId = resolveOrgId();
+  if (!orgId) {
+    return NextResponse.json({ ok: true, mode: 'org_unresolved' });
+  }
+
   try {
-    await processWebhook(payload);
+    await processWebhook(payload, orgId);
   } catch (err) {
-    // Always return 200 even on internal error — Meta will pause delivery
-    // if we 5xx repeatedly. We log + recover async instead.
+    // Always 200 even on internal error — Meta will pause delivery if we 5xx
+    // repeatedly. We log + recover async instead.
     console.error('webhook handler failed:', err);
   }
   return NextResponse.json({ ok: true });
@@ -72,7 +89,7 @@ export async function POST(req: Request) {
 
 // ─── Domain handler ────────────────────────────────────────────────────────
 
-async function processWebhook(payload: WACloudWebhook) {
+async function processWebhook(payload: WACloudWebhook, orgId: string) {
   for (const entry of payload.entry || []) {
     for (const change of entry.changes || []) {
       const value = change.value;
@@ -91,36 +108,52 @@ async function processWebhook(payload: WACloudWebhook) {
         // (Cheap, idempotent, Meta-recommended.)
         markRead(norm.wamid).catch(() => {});
 
-        // TODO when Supabase is wired:
-        //   1. UPSERT conversations row by phone
-        //   2. INSERT message
-        //   3. If media: queue media download → MEDIA_VERIFICATION_PROMPT
-        //   4. Run WHATSAPP_EXTRACTION_PROMPT, store ai_extractions row
-        //   5. Notify the assigned agent (or unclaimed queue)
-        console.log('[wa.incoming]', JSON.stringify({
-          wamid: norm.wamid,
-          phone: norm.phone,
-          name: norm.customer_name,
-          at_ms: norm.at_ms,
-          body: norm.body.slice(0, 200),
-          media: norm.media,
-          reply_to: norm.in_reply_to_wamid,
-        }));
+        try {
+          const { language, meaningful } = inferLanguageFromBody(norm.body);
+          const conv = await upsertConversation(orgId, norm.phone, { language, meaningful });
+          const result = await insertInboundMessage(orgId, conv.id, norm);
+          await logSystemActivity(AUDIT_ACTIONS.WA_MESSAGE_PERSISTED, orgId, {
+            phone: maskPhone(norm.phone),
+            wamid: norm.wamid,
+            type: norm.type || 'text',
+            conversation_created: conv.created,
+            replayed: result.existed,
+          });
+          // Spec §10 — masked phone in stdout only.
+          console.log('[wa.persist.inbound]', JSON.stringify({
+            phone: maskPhone(norm.phone),
+            type: norm.type || 'text',
+            wamid: norm.wamid,
+            existed: result.existed,
+          }));
+        } catch (err) {
+          console.error('[wa.persist.inbound] failed:', err);
+        }
       }
 
       // Delivery / read statuses for OUR outbound messages
       for (const s of value.statuses || []) {
-        // TODO when Supabase is wired:
-        //   UPDATE messages SET delivery_status=$1 WHERE meta_wamid=$2
-        console.log('[wa.status]', JSON.stringify({
-          wamid: s.id,
-          to: s.recipient_id,
-          status: s.status,
-          ts: s.timestamp,
-          errors: s.errors,
-          billable: s.pricing?.billable,
-          category: s.pricing?.category,
-        }));
+        try {
+          const result = await recordStatusUpdate(orgId, s.id, s.status as any, {
+            error_code: s.errors?.[0]?.code ?? null,
+            error_message: s.errors?.[0]?.title ?? null,
+            pricing_billable: s.pricing?.billable ?? null,
+            pricing_category: s.pricing?.category ?? null,
+            at_ms: Number(s.timestamp) * 1000,
+          });
+          if (result === 'unmatched') {
+            // Spec §7.2 — log and ignore; do not create synthetic outbound rows.
+            console.log('[wa.status.unmatched]', JSON.stringify({ wamid_prefix: s.id.slice(0, 12), status: s.status }));
+          } else {
+            await logSystemActivity(AUDIT_ACTIONS.WA_STATUS_PERSISTED, orgId, {
+              wamid: s.id,
+              status: s.status,
+              to: maskPhone(s.recipient_id),
+            });
+          }
+        } catch (err) {
+          console.error('[wa.persist.status] failed:', err);
+        }
       }
     }
   }
