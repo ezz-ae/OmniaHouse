@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai';
+import { geminiFunctionDeclarations, getTool } from '@/lib/mcp/registry';
 
 /**
  * AI client — single place that calls the model.
@@ -132,4 +133,109 @@ export async function callJSON<T = any>(opts: Omit<AICallOpts, 'json'>): Promise
 /** Back-compat: some routes call getOpenAI() — keep the name so callers don't break. */
 export function getOpenAI() {
   return getClient();
+}
+
+// ─── MCP / tool-use path ──────────────────────────────────────────────────
+//
+// callWithTools(): runs Gemini function-calling against the registered MCP
+// tool catalog. The model decides what to fetch from Supabase / live data
+// instead of receiving a pre-baked JSON dump. Used by /api/omnia/converse
+// when OMNIA_USE_MCP=1 (and future endpoints as we migrate).
+//
+// Returns { text, tool_log }. tool_log is an array of { tool, args, result }
+// so the chat UI can render a "Omnia · used 3 tools" badge.
+
+export type ToolLogEntry = { tool: string; args: any; result_summary: string; result?: any };
+export type ToolCallResult = { text: string; tool_log: ToolLogEntry[]; model: string } | null;
+
+const MAX_TOOL_ROUNDS = 6;
+
+function geminiTools() {
+  // SDK accepts FunctionDeclaration[] inside tools[0].functionDeclarations.
+  return [{ functionDeclarations: geminiFunctionDeclarations() as any }];
+}
+
+function summarizeResult(value: any): string {
+  if (!value || typeof value !== 'object') return String(value).slice(0, 120);
+  if (value.ok === false) return `error: ${value.reason || 'unknown'}`;
+  const counts: string[] = [];
+  for (const [k, v] of Object.entries(value)) {
+    if (k === 'ok') continue;
+    if (typeof v === 'number') counts.push(`${k}=${v}`);
+    else if (Array.isArray(v)) counts.push(`${k}=${v.length}`);
+  }
+  return counts.join(' · ').slice(0, 160) || 'ok';
+}
+
+export async function callWithTools(opts: {
+  systemPrompt: string;
+  userInput: string;
+  model?: ModelTier | string;
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<ToolCallResult> {
+  const client = getClient();
+  if (!client) return null;
+
+  const modelName = resolveModelName(opts.model);
+  const model = client.getGenerativeModel({
+    model: modelName,
+    systemInstruction: opts.systemPrompt,
+    tools: geminiTools(),
+    generationConfig: {
+      temperature: opts.temperature ?? 0.4,
+      maxOutputTokens: opts.maxTokens || 2000,
+    },
+  });
+
+  const chat = model.startChat();
+  const tool_log: ToolLogEntry[] = [];
+  let prompt: any = opts.userInput;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    let response;
+    try {
+      const send = await chat.sendMessage(prompt);
+      response = send.response;
+    } catch (err) {
+      console.error('callWithTools sendMessage failed:', err);
+      return null;
+    }
+
+    const calls = (response as any).functionCalls?.() || [];
+    if (!calls.length) {
+      // No more tool calls — model has produced a final answer.
+      const text = response.text();
+      return { text, tool_log, model: modelName };
+    }
+
+    // Dispatch every function call from this turn in parallel.
+    const settled = await Promise.all(
+      calls.map(async (call: any) => {
+        const tool = getTool(call.name);
+        if (!tool) {
+          return { name: call.name, response: { ok: false, reason: 'unknown_tool' } };
+        }
+        try {
+          const result = await tool.handler(call.args || {});
+          tool_log.push({ tool: call.name, args: call.args || {}, result_summary: summarizeResult(result), result });
+          return { name: call.name, response: result };
+        } catch (err: any) {
+          const result = { ok: false, reason: 'tool_error', error: String(err?.message || err) };
+          tool_log.push({ tool: call.name, args: call.args || {}, result_summary: summarizeResult(result), result });
+          return { name: call.name, response: result };
+        }
+      }),
+    );
+
+    prompt = settled.map((r) => ({ functionResponse: { name: r.name, response: r.response } }));
+  }
+
+  // Tool budget exhausted — ask the model for a final answer with no further tools.
+  try {
+    const final = await chat.sendMessage([{ text: 'Summarise what you have learned and respond to the user.' }]);
+    return { text: final.response.text(), tool_log, model: modelName };
+  } catch {
+    return { text: '', tool_log, model: modelName };
+  }
 }

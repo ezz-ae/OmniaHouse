@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isAIEnabled, callJSON, resolveModelName } from '@/lib/ai/client';
+import { isAIEnabled, callJSON, callWithTools, resolveModelName } from '@/lib/ai/client';
 import { OMNIA_PARTNERSHIP_PROMPT } from '@/lib/prompts';
 import { getAgents, getAllTasks, mockAgentReply, getAgent } from '@/lib/agents/mock';
 import { operationsSnapshot } from '@/lib/operations/store';
@@ -8,15 +8,33 @@ import { operationsSnapshot } from '@/lib/operations/store';
  * POST /api/omnia/converse
  * Body: { message: string, user_id?: string }
  *
- * The main agentic loop. Real mode runs OMNIA_PARTNERSHIP_PROMPT with the
- * team profiles, active tasks, AND live OmniaHouse operations context
- * injected (orders pending, customers at risk, signals, follow-ups) so the
- * model can route real work — not just chat.
+ * Dual-mode:
+ *   - OMNIA_USE_MCP=1  → tool-use path. Gemini calls MCP tools
+ *                        (get_orders, find_customers, get_signals, …) and
+ *                        composes its answer from real, fresh data. No
+ *                        snapshot is pre-baked into the prompt.
+ *   - default          → legacy path. We pre-bake an OmniaHouse-today
+ *                        snapshot and dump it as JSON to the model.
  *
- * Mock mode (no GOOGLE_API_KEY) returns a deterministic reply from
- * agents/mock.ts. The response always carries `mode` and `model` so the
+ * Mock fallback applies in both modes when GOOGLE_API_KEY is unset or the
+ * model fails. The response always carries `mode` and `model` so the
  * client can show a badge.
  */
+
+const USE_MCP = process.env.OMNIA_USE_MCP === '1' || process.env.OMNIA_USE_MCP === 'true';
+
+const MCP_GUIDE = `
+You have access to MCP tools that read live OmniaHouse data (catalogue,
+customers, orders, WhatsApp inbox, signals, team load). Before answering
+operational questions, call the tools you need rather than guessing.
+Examples:
+  • "what's blocked today?"      → orders_today_summary
+  • "who can take a bridal lead" → get_team_load
+  • "which SKUs drift the most"  → find_products(parity='both_price_drift')
+  • "VIP from Saudi"             → find_customers + get_customer_summary
+Then reply in the same JSON shape the system prompt specifies.
+`.trim();
+
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
@@ -26,7 +44,59 @@ export async function POST(req: Request) {
     const tasks = getAllTasks();
     const omnia = getAgent('agent_omnia')!;
 
+    if (isAIEnabled() && USE_MCP) {
+      // MCP path · model decides what to fetch via tools.
+      const teamLite = agents
+        .filter((a) => a.kind === 'member')
+        .map((a) => ({ id: a.id, name: a.short_name, role: a.for_user_role, skills: a.skills }));
+      const activeTasks = tasks
+        .filter((t) => t.status !== 'completed')
+        .map((t) => ({ id: t.id, title: t.title, assignee: t.assignee_agent_id, priority: t.priority }));
+
+      const userTurn = JSON.stringify({
+        user_message: message,
+        team: teamLite,
+        active_tasks: activeTasks,
+        hint: 'Call MCP tools to learn about catalogue, customers, orders, WhatsApp, signals before deciding.',
+      });
+
+      const result = await callWithTools({
+        systemPrompt: `${OMNIA_PARTNERSHIP_PROMPT}\n\n${MCP_GUIDE}`,
+        userInput: userTurn,
+        model: 'pro',
+        temperature: 0.3,
+        maxTokens: 2500,
+      });
+
+      if (result?.text) {
+        // Try to parse JSON; fall back to wrapping prose in response_message.
+        let parsed: any = null;
+        try { parsed = JSON.parse(result.text); } catch {
+          const first = result.text.indexOf('{');
+          const last = result.text.lastIndexOf('}');
+          if (first !== -1 && last > first) {
+            try { parsed = JSON.parse(result.text.slice(first, last + 1)); } catch {}
+          }
+        }
+        if (parsed && typeof parsed === 'object') {
+          return NextResponse.json({
+            ok: true, mode: 'mcp', model: result.model,
+            tool_log: result.tool_log.map((t) => ({ tool: t.tool, args: t.args, result_summary: t.result_summary })),
+            ...parsed,
+          });
+        }
+        return NextResponse.json({
+          ok: true, mode: 'mcp', model: result.model,
+          tool_log: result.tool_log.map((t) => ({ tool: t.tool, args: t.args, result_summary: t.result_summary })),
+          response_message: result.text.trim(),
+          new_tasks: [], memory_to_save: [], stalled_tasks_update: [],
+        });
+      }
+      // fall through to legacy path
+    }
+
     if (isAIEnabled()) {
+      // Legacy prompt path.
       const ops = await operationsSnapshot();
 
       const drafts = ops.orders.filter((o) => o.status === 'draft' || o.status === 'payment_pending');
@@ -66,8 +136,6 @@ export async function POST(req: Request) {
         },
         user_message: message,
       };
-      // Try Flash first — faster and more reliable for chat. If it fails,
-      // fall back to Pro. If both fail, drop to mock (logged in /ai/status).
       let result = await callJSON({
         systemPrompt: OMNIA_PARTNERSHIP_PROMPT,
         userInput: JSON.stringify(context),
